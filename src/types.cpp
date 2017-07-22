@@ -375,16 +375,14 @@ void Compiler::implicitlyCastIntToInt(TypedValue **lhs, TypedValue **rhs){
         if(lbw < rbw){
             auto *ret = new TypedValue(
                 builder.CreateIntCast((*lhs)->val, (*rhs)->getType(), !isUnsignedTypeTag((*lhs)->type->type)),
-                copy((*rhs)->type)
-            );
+                (*rhs)->type.get());
             
             *lhs = ret;
 
         }else{//lbw > rbw
             auto *ret = new TypedValue(
                 builder.CreateIntCast((*rhs)->val, (*lhs)->getType(), !isUnsignedTypeTag((*rhs)->type->type)),
-                copy((*lhs)->type)
-            );
+                (*lhs)->type.get());
 
             *rhs = ret;
         }
@@ -433,14 +431,12 @@ void Compiler::implicitlyCastFltToFlt(TypedValue **lhs, TypedValue **rhs){
         if(lbw < rbw){
             auto *ret = new TypedValue(
                 builder.CreateFPExt((*lhs)->val, (*rhs)->getType()),
-                copy((*rhs)->type)
-            );
+                (*rhs)->type.get());
             *lhs = ret;
         }else{//lbw > rbw
             auto *ret = new TypedValue(
                 builder.CreateFPExt((*rhs)->val, (*lhs)->getType()),
-                copy((*lhs)->type)
-            );
+                (*lhs)->type.get());
             *rhs = ret;
         }
     }

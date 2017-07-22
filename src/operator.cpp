@@ -17,11 +17,11 @@ TypedValue* Compiler::compAdd(TypedValue *l, TypedValue *r, BinOpNode *op){
         case TT_I64: case TT_U64:
         case TT_Isz: case TT_Usz:
         case TT_Ptr:
-            return new TypedValue(builder.CreateAdd(l->val, r->val), l->type);
+            return new TypedValue(builder.CreateAdd(l->val, r->val), l->type.get());
         case TT_F16:
         case TT_F32:
         case TT_F64:
-            return new TypedValue(builder.CreateFAdd(l->val, r->val), l->type);
+            return new TypedValue(builder.CreateFAdd(l->val, r->val), l->type.get());
 
         default:
             return compErr("binary operator + is undefined for the type " + typeNodeToColoredStr(l->type) + " and " + typeNodeToColoredStr(r->type), op->loc);
@@ -36,11 +36,11 @@ TypedValue* Compiler::compSub(TypedValue *l, TypedValue *r, BinOpNode *op){
         case TT_I64: case TT_U64:
         case TT_Isz: case TT_Usz:
         case TT_Ptr:
-            return new TypedValue(builder.CreateSub(l->val, r->val), l->type);
+            return new TypedValue(builder.CreateSub(l->val, r->val), l->type.get());
         case TT_F16:
         case TT_F32:
         case TT_F64:
-            return new TypedValue(builder.CreateFSub(l->val, r->val), l->type);
+            return new TypedValue(builder.CreateFSub(l->val, r->val), l->type.get());
 
         default:
             return compErr("binary operator - is undefined for the type " + typeNodeToColoredStr(l->type) + " and " + typeNodeToColoredStr(r->type), op->loc);
@@ -54,11 +54,11 @@ TypedValue* Compiler::compMul(TypedValue *l, TypedValue *r, BinOpNode *op){
         case TT_I32: case TT_U32:
         case TT_I64: case TT_U64:
         case TT_Isz: case TT_Usz:
-            return new TypedValue(builder.CreateMul(l->val, r->val), l->type);
+            return new TypedValue(builder.CreateMul(l->val, r->val), l->type.get());
         case TT_F16:
         case TT_F32:
         case TT_F64:
-            return new TypedValue(builder.CreateFMul(l->val, r->val), l->type);
+            return new TypedValue(builder.CreateFMul(l->val, r->val), l->type.get());
 
         default:
             return compErr("binary operator * is undefined for the type " + typeNodeToColoredStr(l->type) + " and " + typeNodeToColoredStr(r->type), op->loc);
@@ -72,17 +72,17 @@ TypedValue* Compiler::compDiv(TypedValue *l, TypedValue *r, BinOpNode *op){
         case TT_I32: 
         case TT_I64: 
         case TT_Isz: 
-            return new TypedValue(builder.CreateSDiv(l->val, r->val), l->type);
+            return new TypedValue(builder.CreateSDiv(l->val, r->val), l->type.get());
         case TT_U8: case TT_C8:
         case TT_U16:
         case TT_U32:
         case TT_U64:
         case TT_Usz: 
-            return new TypedValue(builder.CreateUDiv(l->val, r->val), l->type);
+            return new TypedValue(builder.CreateUDiv(l->val, r->val), l->type.get());
         case TT_F16:
         case TT_F32:
         case TT_F64:
-            return new TypedValue(builder.CreateFDiv(l->val, r->val), l->type);
+            return new TypedValue(builder.CreateFDiv(l->val, r->val), l->type.get());
 
         default: 
             return compErr("binary operator / is undefined for the type " + typeNodeToColoredStr(l->type) + " and " + typeNodeToColoredStr(r->type), op->loc);
@@ -96,17 +96,17 @@ TypedValue* Compiler::compRem(TypedValue *l, TypedValue *r, BinOpNode *op){
         case TT_I32:
         case TT_I64:
         case TT_Isz: 
-            return new TypedValue(builder.CreateSRem(l->val, r->val), l->type);
+            return new TypedValue(builder.CreateSRem(l->val, r->val), l->type.get());
         case TT_U8: case TT_C8:
         case TT_U16:
         case TT_U32:
         case TT_U64:
         case TT_Usz: 
-            return new TypedValue(builder.CreateURem(l->val, r->val), l->type);
+            return new TypedValue(builder.CreateURem(l->val, r->val), l->type.get());
         case TT_F16:
         case TT_F32:
         case TT_F64:
-            return new TypedValue(builder.CreateFRem(l->val, r->val), l->type);
+            return new TypedValue(builder.CreateFRem(l->val, r->val), l->type.get());
 
         default:
             return compErr("binary operator % is undefined for the types " + typeNodeToColoredStr(l->type) + " and " + typeNodeToColoredStr(r->type), op->loc);
@@ -129,12 +129,12 @@ TypedValue* Compiler::compExtract(TypedValue *l, TypedValue *r, BinOpNode *op){
             vector<Value*> indices;
             indices.push_back(ConstantInt::get(*ctxt, APInt(64, 0, true)));
             indices.push_back(r->val);
-            return new TypedValue(builder.CreateLoad(builder.CreateGEP(arr, indices)), l->type->extTy);
+            return new TypedValue(builder.CreateLoad(builder.CreateGEP(arr, indices)), l->type->extTy.get());
         }else{
             return new TypedValue(builder.CreateExtractElement(l->val, r->val), l->type->extTy.get());
         }
     }else if(l->type->type == TT_Ptr){
-        return new TypedValue(builder.CreateLoad(builder.CreateGEP(l->val, r->val)), l->type->extTy);
+        return new TypedValue(builder.CreateLoad(builder.CreateGEP(l->val, r->val)), l->type->extTy.get());
 
     }else if(l->type->type == TT_Tuple || l->type->type == TT_Data){
 		auto indexval = dyn_cast<ConstantInt>(r->val);
@@ -161,7 +161,7 @@ TypedValue* Compiler::compExtract(TypedValue *l, TypedValue *r, BinOpNode *op){
             indexTyn = (TypeNode*)indexTyn->next.get();
 
         Value *tup = llvmTypeToTypeTag(l->getType()) == TT_Ptr ? builder.CreateLoad(l->val) : l->val;
-        return new TypedValue(builder.CreateExtractValue(tup, index), copy(indexTyn));
+        return new TypedValue(builder.CreateExtractValue(tup, index), indexTyn);
     }
     return compErr("Type " + typeNodeToColoredStr(l->type) + " does not have elements to access", op->loc);
 }
@@ -195,7 +195,7 @@ TypedValue* Compiler::compInsert(BinOpNode *op, Node *assignExpr){
     auto *fn = getFunction(basefn, mangledfn);
     if(fn){
         vector<Value*> args = {var, index->val, newVal->val};
-        return new TypedValue(builder.CreateCall(fn->val, args), fn->type->extTy);
+        return new TypedValue(builder.CreateCall(fn->val, args), fn->type->extTy.get());
     }
 
     switch(tmp->type->type){
@@ -341,10 +341,15 @@ ReinterpretCastResult checkForReinterpretCast(Compiler *c, TypeNode *castTyn, Ty
         //The tyn of a DataType is always a tuple, so wrap the casting value with a
         //tuple if it is not one already or else it will always fail type checking.
         TypeNode *wrapper = valToCast->type->type != TT_Tuple and dataTy->tyn->type == TT_Tuple
-                           ? mkTypeNodeWithExt(TT_Tuple, valToCast->type.get())
+                           ? mkTypeNodeWithExt(TT_Tuple, copy(valToCast->type.get()))
                            : valToCast->type.get();
        
         auto tc = c->typeEq(wrapper, dataTy->tyn.get());
+
+        cout << "type check between wrapper " << typeNodeToStr(wrapper) << " and " << typeNodeToStr(dataTy->tyn.get()) << endl;
+
+        if(wrapper != valToCast->type.get())
+            delete wrapper;
 
         if(!!tc){
             if(dataTy->isUnionTag())
@@ -379,7 +384,7 @@ TypedValue* doReinterpretCast(Compiler *c, TypeNode *castTyn, TypedValue *valToC
         return nullptr;
 
     }else if(res.type == ReinterpretCastResult::ValToPrimitive){
-        return new TypedValue(valToCast->val, copy(castTyn));
+        return new TypedValue(valToCast->val, castTyn);
 
     }else{ //ValToUnion or ValToStruct
         bool isUnion = res.type == ReinterpretCastResult::ValToUnion;
@@ -446,7 +451,7 @@ TypedValue* createCast(Compiler *c, TypeNode *castTyn, TypedValue *valToCast){
             }
 
             auto *call = c->builder.CreateCall(fn->val, args);
-            return new TypedValue(call, fn->type->extTy);
+            return new TypedValue(call, fn->type->extTy.get());
         }
     }
 
@@ -519,7 +524,10 @@ TypedValue* TypeCastNode::compile(Compiler *c){
         }
     }
 
+    auto *rtn = rtval->type->next.release();
+
     auto* tval = createCast(c, ty, rtval);
+    rtval->type->next.reset(rtn);
 
     if(!tval){
         //if(!!c->typeEq(rtval->type.get(), ty))
@@ -693,7 +701,7 @@ TypedValue* compIf(Compiler *c, IfNode *ifn, BasicBlock *mergebb, vector<pair<Ty
                     phi->addIncoming(pair.first->val, pair.second);
                 }
 
-            return new TypedValue(phi, thenVal->type);
+            return new TypedValue(phi, thenVal->type.get());
         }else{
             return c->getVoidLiteral();
         }
@@ -759,23 +767,25 @@ TypedValue* Compiler::compMemberAccess(Node *ln, VarNode *field, BinOpNode *bino
                 auto index = dataTy->getFieldIndex(field->name);
 
                 if(index != -1){
-                    auto *dataTyn = copy(dataTy->tyn.get());
-                    
-                    if(!tyn->params.empty()){
-                        bindGenericToType(dataTyn, tyn->params, dataTy);
-                    }
-
+                    TypeNode *dataTyn = dataTy->tyn.get();
                     TypeNode *indexTy = dataTyn->extTy.get();
 
                     for(int i = 0; i < index; i++)
                         indexTy = (TypeNode*)indexTy->next.get();
+                    
+                    TypeNode *retTy = indexTy;
 
-                    TypeNode *retTy = copy(indexTy);
-                    delete dataTyn;
+                    if(!tyn->params.empty()){
+                        retTy = copy(retTy);
+                        bindGenericToType(dataTyn, tyn->params, dataTy);
+                    }
 
                     //The data type when looking up (usually) does not have any modifiers,
                     //so apply any potential modifers from the parent to this
                     if(retTy->modifiers.empty() and !ltyn->modifiers.empty()){
+                        if(retTy == indexTy)
+                            retTy = copy(retTy);
+
                         retTy->copyModifiersFrom(tyn);
                     }
 
@@ -796,7 +806,7 @@ TypedValue* Compiler::compMemberAccess(Node *ln, VarNode *field, BinOpNode *bino
         auto& l = getFunctionList(funcName);
 
         if(!l.empty()){
-            TypedValue *obj = new TypedValue(val, copy(tyn));
+            TypedValue *obj = new TypedValue(val, tyn);
             return new FunctionCandidates(l, obj);
         }else{
             return compErr("Method/Field " + field->name + " not found in type " + typeNodeToColoredStr(tyn), binop->loc);
@@ -840,30 +850,29 @@ float f32_from_f16(float f) {
  *  Converts an llvm GenericValue to a TypedValue
  */
 TypedValue* genericValueToTypedValue(Compiler *c, GenericValue gv, TypeNode *tn){
-    auto *copytn = copy(tn);
     switch(tn->type){
-        case TT_I8:              return new TypedValue(c->builder.getInt8( *gv.IntVal.getRawData()),                  copytn);
-        case TT_I16:             return new TypedValue(c->builder.getInt16(*gv.IntVal.getRawData()),                  copytn);
-        case TT_I32:             return new TypedValue(c->builder.getInt32(*gv.IntVal.getRawData()),                  copytn);
-        case TT_I64:             return new TypedValue(c->builder.getInt64(*gv.IntVal.getRawData()),                  copytn);
-        case TT_U8:              return new TypedValue(c->builder.getInt8( *gv.IntVal.getRawData()),                  copytn);
-        case TT_U16:             return new TypedValue(c->builder.getInt16(*gv.IntVal.getRawData()),                  copytn);
-        case TT_U32:             return new TypedValue(c->builder.getInt32(*gv.IntVal.getRawData()),                  copytn);
-        case TT_U64:             return new TypedValue(c->builder.getInt64(*gv.IntVal.getRawData()),                  copytn);
-        case TT_Isz:             return new TypedValue(c->builder.getIntN(*gv.IntVal.getRawData(), AN_USZ_SIZE),      copytn);
-        case TT_Usz:             return new TypedValue(c->builder.getIntN(*gv.IntVal.getRawData(), AN_USZ_SIZE),      copytn);
-        case TT_C8:              return new TypedValue(c->builder.getInt8( *gv.IntVal.getRawData()),                  copytn);
-        case TT_C32:             return new TypedValue(c->builder.getInt32(*gv.IntVal.getRawData()),                  copytn);
-        case TT_F16:             return new TypedValue(ConstantFP::get(*c->ctxt, APFloat(f32_from_f16(gv.FloatVal))), copytn);
-        case TT_F32:             return new TypedValue(ConstantFP::get(*c->ctxt, APFloat(gv.FloatVal)),               copytn);
-        case TT_F64:             return new TypedValue(ConstantFP::get(*c->ctxt, APFloat(gv.DoubleVal)),              copytn);
-        case TT_Bool:            return new TypedValue(c->builder.getInt1(*gv.IntVal.getRawData()),                   copytn);
+        case TT_I8:              return new TypedValue(c->builder.getInt8( *gv.IntVal.getRawData()),                  tn);
+        case TT_I16:             return new TypedValue(c->builder.getInt16(*gv.IntVal.getRawData()),                  tn);
+        case TT_I32:             return new TypedValue(c->builder.getInt32(*gv.IntVal.getRawData()),                  tn);
+        case TT_I64:             return new TypedValue(c->builder.getInt64(*gv.IntVal.getRawData()),                  tn);
+        case TT_U8:              return new TypedValue(c->builder.getInt8( *gv.IntVal.getRawData()),                  tn);
+        case TT_U16:             return new TypedValue(c->builder.getInt16(*gv.IntVal.getRawData()),                  tn);
+        case TT_U32:             return new TypedValue(c->builder.getInt32(*gv.IntVal.getRawData()),                  tn);
+        case TT_U64:             return new TypedValue(c->builder.getInt64(*gv.IntVal.getRawData()),                  tn);
+        case TT_Isz:             return new TypedValue(c->builder.getIntN(*gv.IntVal.getRawData(), AN_USZ_SIZE),      tn);
+        case TT_Usz:             return new TypedValue(c->builder.getIntN(*gv.IntVal.getRawData(), AN_USZ_SIZE),      tn);
+        case TT_C8:              return new TypedValue(c->builder.getInt8( *gv.IntVal.getRawData()),                  tn);
+        case TT_C32:             return new TypedValue(c->builder.getInt32(*gv.IntVal.getRawData()),                  tn);
+        case TT_F16:             return new TypedValue(ConstantFP::get(*c->ctxt, APFloat(f32_from_f16(gv.FloatVal))), tn);
+        case TT_F32:             return new TypedValue(ConstantFP::get(*c->ctxt, APFloat(gv.FloatVal)),               tn);
+        case TT_F64:             return new TypedValue(ConstantFP::get(*c->ctxt, APFloat(gv.DoubleVal)),              tn);
+        case TT_Bool:            return new TypedValue(c->builder.getInt1(*gv.IntVal.getRawData()),                   tn);
         case TT_Tuple:           break;
         case TT_Array:           break;
         case TT_Ptr: {
             auto *cint = c->builder.getInt64((unsigned long) gv.PointerVal);
             auto *ty = c->typeNodeToLlvmType(tn);
-            return new TypedValue(c->builder.CreateIntToPtr(cint, ty), copytn);
+            return new TypedValue(c->builder.CreateIntToPtr(cint, ty), tn);
         }case TT_Data:
         case TT_TypeVar:
         case TT_Function:
@@ -940,7 +949,7 @@ GenericValue typedValueToGenericValue(Compiler *c, TypedValue *tv){
             size_t i = 0;
             for(auto *ty : *tv->type->extTy){
                 Value *extract = c->builder.CreateExtractValue(tv->val, i);
-                auto *field = new TypedValue(extract, copy((TypeNode*)&ty));
+                auto *field = new TypedValue(extract, (TypeNode*)&ty);
                 ret.AggregateVal.push_back(typedValueToGenericValue(c, field));
                 i++;
             }
@@ -1085,7 +1094,7 @@ bool isInvalidParamType(Type *t){
 
 //Computes the address of operator &
 TypedValue* addrOf(Compiler *c, TypedValue* tv){
-    auto *ptrTy = mkTypeNodeWithExt(TT_Ptr, copy(tv->type));
+    auto *ptrTy = mkTypeNodeWithExt(TT_Ptr, tv->type.get());
 
     if(LoadInst* li = dyn_cast<LoadInst>(tv->val)){
         return new TypedValue(li->getPointerOperand(), ptrTy);
@@ -1121,7 +1130,7 @@ TypedValue* tryImplicitCast(Compiler *c, TypedValue *arg, TypeNode *castTy){
             return new TypedValue(c->builder.CreateExtractValue(str, 0),
                       mkTypeNodeWithExt(TT_Ptr, mkAnonTypeNode(TT_C8)));
         }else{
-            return new TypedValue(c->builder.CreateCall(fn->val, arg->val), fn->type->extTy);
+            return new TypedValue(c->builder.CreateCall(fn->val, arg->val), fn->type->extTy.get());
         }
     }else{
         return nullptr;
@@ -1321,8 +1330,7 @@ TypedValue* compFnCall(Compiler *c, Node *l, Node *r){
     //both a C-style cast and dyn-cast to functions fail if f is a function-pointer
     auto *call = c->builder.CreateCall(tvf->val, args);
 
-    auto *ret = new TypedValue(call, tvf->type->extTy);
-    return ret;
+    return new TypedValue(call, tvf->type->extTy.get());
 }
 
 TypedValue* Compiler::compLogicalOr(Node *lexpr, Node *rexpr, BinOpNode *op){
@@ -1358,7 +1366,7 @@ TypedValue* Compiler::compLogicalOr(Node *lexpr, Node *rexpr, BinOpNode *op){
     phi->addIncoming(ConstantInt::get(*ctxt, APInt(1, true, true)), curbbl);
     phi->addIncoming(rhs->val, curbbr);
 
-    return new TypedValue(phi, rhs->type);
+    return new TypedValue(phi, rhs->type.get());
     
 }
 
@@ -1395,7 +1403,7 @@ TypedValue* Compiler::compLogicalAnd(Node *lexpr, Node *rexpr, BinOpNode *op){
     phi->addIncoming(ConstantInt::get(*ctxt, APInt(1, false, true)), curbbl);
     phi->addIncoming(rhs->val, curbbr);
 
-    return new TypedValue(phi, rhs->type);
+    return new TypedValue(phi, rhs->type.get());
 }
 
 
@@ -1420,7 +1428,7 @@ TypedValue* handlePrimitiveNumericOp(BinOpNode *bop, Compiler *c, TypedValue *lh
                         return new TypedValue(c->builder.CreateICmpUGT(lhs->val, rhs->val), mkAnonTypeNode(TT_Bool));
                     else
                         return new TypedValue(c->builder.CreateICmpSGT(lhs->val, rhs->val), mkAnonTypeNode(TT_Bool));
-        case '^': return new TypedValue(c->builder.CreateXor(lhs->val, rhs->val), lhs->type);
+        case '^': return new TypedValue(c->builder.CreateXor(lhs->val, rhs->val), lhs->type.get());
         case Tok_Eq:
                     if(isFPTypeTag(lhs->type->type))
                         return new TypedValue(c->builder.CreateFCmpOEQ(lhs->val, rhs->val), mkAnonTypeNode(TT_Bool));
@@ -1478,7 +1486,7 @@ TypedValue* checkForOperatorOverload(Compiler *c, TypedValue *lhs, int op, Typed
     rhs = typeCheckWithImplicitCasts(c, rhs, param2);
 
     vector<Value*> argVals = {lhs->val, rhs->val};
-    return new TypedValue(c->builder.CreateCall(fn->val, argVals), fn->type->extTy);
+    return new TypedValue(c->builder.CreateCall(fn->val, argVals), fn->type->extTy.get());
 }
 
 
@@ -1555,16 +1563,16 @@ TypedValue* UnOpNode::compile(Compiler *c){
                 return c->compErr("Cannot dereference non-pointer type " + typeNodeToColoredStr(rhs->type), loc);
             }
            
-            return new TypedValue(c->builder.CreateLoad(rhs->val), rhs->type->extTy);
+            return new TypedValue(c->builder.CreateLoad(rhs->val), rhs->type->extTy.get());
         case '&': //address-of
             return addrOf(c, rhs);
         case '-': //negation
-            return new TypedValue(c->builder.CreateNeg(rhs->val), rhs->type);
+            return new TypedValue(c->builder.CreateNeg(rhs->val), rhs->type.get());
         case Tok_Not:
             if(rhs->type->type != TT_Bool)
                 return c->compErr("Unary not operator not overloaded for type " + typeNodeToColoredStr(rhs->type), loc);
 
-            return new TypedValue(c->builder.CreateNot(rhs->val), rhs->type);
+            return new TypedValue(c->builder.CreateNot(rhs->val), rhs->type.get());
         case Tok_New:
             //the 'new' keyword in ante creates a reference to any existing value
 
@@ -1583,15 +1591,14 @@ TypedValue* UnOpNode::compile(Compiler *c){
                 //finally store rhs into the malloc'd slot
                 c->builder.CreateStore(rhs->val, typedPtr);
 
-                auto *tyn = mkTypeNodeWithExt(TT_Ptr, copy(rhs->type));
+                auto *tyn = mkTypeNodeWithExt(TT_Ptr, rhs->type.get());
                 auto *ret = new TypedValue(typedPtr, tyn);
 
                 //Create an upper-case name so it cannot be referenced normally
                 string tmpAllocName = "New_" + typeNodeToStr(rhs->type.get());
                 c->stoVar(tmpAllocName, new Variable(tmpAllocName, ret, c->scope, true));
 
-                //return a copy of ret in case it is modified/freed
-                return new TypedValue(ret->val, ret->type);
+                return ret;
             }
     }
     

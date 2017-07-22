@@ -53,7 +53,7 @@ TypedValue* Compiler::callFn(string name, vector<TypedValue*> args){
         vals.push_back(arg->val);
     }
 
-    return new TypedValue(builder.CreateCall(fn->val, vals), fn->type->extTy);
+    return new TypedValue(builder.CreateCall(fn->val, vals), fn->type->extTy.get());
 }
 
 
@@ -123,7 +123,7 @@ TypeNode* validateReturns(Compiler *c, FuncDecl *fd, TypeNode *retTy = 0){
         }
 
         if(tcr->res == TypeCheckResult::SuccessWithTypeVars){
-            //TODO: copy type
+            ret->type.reset(copy(ret->type.release()));
             bindGenericToType(ret->type.get(), tcr->bindings);
             ret->val->mutateType(c->typeNodeToLlvmType(ret->type.get()));
 
@@ -143,7 +143,7 @@ TypeNode* validateReturns(Compiler *c, FuncDecl *fd, TypeNode *retTy = 0){
         }
     }
 
-    return copy(matchTy);
+    return matchTy;
 }
 
 
@@ -195,7 +195,7 @@ TypedValue* Compiler::compLetBindingFn(FuncDecl *fd, vector<Type*> &paramTys){
                         to_string(j+1)+" and "+to_string(i+1), cParam->loc);
             }
         }
-        stoVar(cParam->name, new Variable(cParam->name, new TypedValue(&arg, copy(paramTyNode)), this->scope,
+        stoVar(cParam->name, new Variable(cParam->name, new TypedValue(&arg, paramTyNode), this->scope,
                         /*nofree =*/ true, /*autoDeref = */implicitPassByRef(paramTyNode)));
 
         preArgs.push_back(&arg);
@@ -250,6 +250,7 @@ TypedValue* Compiler::compLetBindingFn(FuncDecl *fd, vector<Type*> &paramTys){
     TypeNode *newFnTyn = copy(fakeFnTyn);
     TypeNode *params = (TypeNode*)newFnTyn->extTy->next.release();
 
+    retTy = copy(retTy);
     retTy->next.reset(params);
     newFnTyn->extTy.reset(retTy);
 
@@ -434,7 +435,7 @@ TypedValue* compFnHelper(Compiler *c, FuncDecl *fd){
                             to_string(j+1)+" and "+to_string(i+1), cParam->loc);
                 }
             }
-            c->stoVar(cParam->name, new Variable(cParam->name, new TypedValue(&arg, copy(paramTyNode)),
+            c->stoVar(cParam->name, new Variable(cParam->name, new TypedValue(&arg, paramTyNode),
                         c->scope, /*nofree = */true, /*autoDeref = */implicitPassByRef(paramTyNode)));
            
             i++;
@@ -554,6 +555,7 @@ TypedValue* compTemplateFn(Compiler *c, FuncDecl *fd, TypeCheckResult &tc, TypeN
         while(fd->obj_bindings.size() > tmp_bindings_loc){
             fd->obj_bindings.pop_back();
         }
+        fd->fdn->type.release();
         fd->fdn->type.reset(retTy);
         unbindParams(fd->fdn->params.get(), unboundParams);
         fd->fdn->name = oldName;
@@ -567,10 +569,10 @@ TypedValue* compTemplateFn(Compiler *c, FuncDecl *fd, TypeCheckResult &tc, TypeN
     while(fd->obj_bindings.size() > tmp_bindings_loc){
         fd->obj_bindings.pop_back();
     }
-    
+
+    fd->fdn->type.release();
     fd->fdn->type.reset(retTy);
     unbindParams(fd->fdn->params.get(), unboundParams);
-
     return res;
 }
 
@@ -664,7 +666,7 @@ FuncDecl* Compiler::getCurrentFunction() const{
 void Compiler::updateFn(TypedValue *f, string &name, string &mangledName){
     auto &list = mergedCompUnits->fnDecls[name];
     auto *fd = getFuncDeclFromVec(list, mangledName);
-    fd->tv = new TypedValue(f->val, f->type);
+    fd->tv = new TypedValue(f->val, f->type.get());
 }
 
 
@@ -834,6 +836,8 @@ TypeNode* tupleToList(TypeNode *tup){
         tup = tup->extTy.get();
     else if(tup->type == TT_Void)
         tup = nullptr;
+    else if(tup->next.get())
+        tup = copy(tup);
     
     return tup;
 }
@@ -842,6 +846,7 @@ TypeNode* tupleToList(TypeNode *tup){
 FuncDecl* Compiler::getCastFuncDecl(TypeNode *from_ty, TypeNode *to_ty){
     string fnBaseName = getCastFnBaseName(to_ty);
     TypeNode *argList = tupleToList(from_ty);
+
     return getMangledFuncDecl(fnBaseName, vectorize(argList));
 }
 

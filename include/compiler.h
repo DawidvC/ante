@@ -35,14 +35,6 @@ namespace ante {
 
         TypedValue(Value *v, TypeNode *ty) : val(v), type(ty){}
         
-        /**
-        * @brief Constructs a TypedValue 
-        *
-        * @param v The Value to use
-        * @param ty The TypeNode here is copied, not moved
-        */
-        TypedValue(Value *v, unique_ptr<TypeNode> &ty) : val(v), type(copy(ty)){}
-        
         Type* getType() const{ return val->getType(); }
         /**
         * @brief Returns true if the type of this TypedValue contains the given modifier

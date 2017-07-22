@@ -140,8 +140,7 @@ TypedValue* TypeNode::compile(Compiler *c){
         
         //TaggedUnions store every variant in their type so just retrieve
         //the variant specified at index tagIndex
-        auto *ty = copy(unionDataTy->tyn.get());
-       
+        auto *ty = unionDataTy->tyn.get();
 
         c->enterNewScope();
         auto *voidPtr = mkTypeNodeWithExt(TT_Ptr, mkAnonTypeNode(TT_Void));
@@ -154,7 +153,6 @@ TypedValue* TypeNode::compile(Compiler *c){
         delete voidPtr;
         c->exitScope();
        
-
         Type *curTy = tag->getType();
 
         //allocate for the largest possible union member
@@ -166,9 +164,14 @@ TypedValue* TypeNode::compile(Compiler *c){
 
         //load the initial alloca, not the bitcasted one
         Value *unionVal = c->builder.CreateLoad(alloca);
-        ty->type = TT_TaggedUnion;
 
-        return new TypedValue(unionVal, ty);
+        auto *ext = ty->extTy.release();
+        auto *cpy = copy(ty);
+        ty->extTy.reset(ext);
+
+        cpy->extTy.reset(ext);
+        cpy->type = TT_TaggedUnion;
+        return new TypedValue(unionVal, cpy);
     }
 
 rettype:
@@ -292,7 +295,6 @@ TypedValue* compStrInterpolation(Compiler *c, StrLitNode *sln, int pos){
 
     delete lstr;
     delete rstr;
-    delete val;
     return new TypedValue(appendR, strty);
 }
 
@@ -350,6 +352,11 @@ TypedValue* ArrayNode::compile(Compiler *c){
         i++;
     }
 
+    if(tyn->extTy->next.get()){
+        auto *cpy = copy(tyn->extTy.release());
+        tyn->extTy.reset(cpy);
+    }
+
     tyn->extTy->next.reset(new IntLitNode(tyn->loc, to_string(exprs.size()), TT_U32));
 
     auto *ty = ArrayType::get(arr[0]->getType(), exprs.size());
@@ -385,6 +392,9 @@ TypedValue* TupleNode::compile(Compiler *c){
     //add it to pathogenVals
     for(unsigned i = 0; i < exprs.size(); i++){
         auto *tval = exprs[i]->compile(c);
+        if(tval->type->next.get()){
+            tval = new TypedValue(tval->val, copy(tval->type));
+        }
 
         if(Constant *elem = dyn_cast<Constant>(tval->val)){
             elems.push_back(elem);
@@ -449,8 +459,8 @@ TypedValue* RetNode::compile(Compiler *c){
     TypedValue *ret = expr->compile(c);
     
     auto *retInst = ret->type->type == TT_Void ?
-                 new TypedValue(c->builder.CreateRetVoid(), ret->type) :
-                 new TypedValue(c->builder.CreateRet(ret->val), ret->type);
+                 new TypedValue(c->builder.CreateRetVoid(), ret->type.get()) :
+                 new TypedValue(c->builder.CreateRet(ret->val), ret->type.get());
 
     auto *f = c->getCurrentFunction();
     f->returns.push_back({retInst, expr->loc});
@@ -663,8 +673,8 @@ TypedValue* VarNode::compile(Compiler *c){
 
     if(var){
         return var->autoDeref ?
-            new TypedValue(c->builder.CreateLoad(var->getVal(), name), var->tval->type):
-            new TypedValue(var->tval->val, var->tval->type); //deep copy type
+            new TypedValue(c->builder.CreateLoad(var->getVal(), name), var->tval->type.get()):
+            new TypedValue(var->tval->val, var->tval->type.get()); //deep copy type
     }else{
         //if this is a function, then there must be only one function of the same name, otherwise the reference is ambiguous
         auto& fnlist = c->getFunctionList(name);
@@ -677,7 +687,7 @@ TypedValue* VarNode::compile(Compiler *c){
             if(!fd or !fd->tv)
                 return 0;
 
-            return new TypedValue(fd->tv->val, fd->tv->type);
+            return new TypedValue(fd->tv->val, fd->tv->type.get());
         }else if(fnlist.empty()){
             return c->compErr("Variable or function '" + name + "' has not been declared.", this->loc);
         }else{
@@ -742,29 +752,32 @@ TypedValue* compVarDeclWithInferredType(VarDeclNode *node, Compiler *c){
                 " value to a variable", node->expr->loc);
 
     bool isGlobal = false;
+
+    //copy the type before we add modifiers to it as it may be shared else where
+    TypeNode *valTy = copy(val->type.get());
     
     //Add all of the declared modifiers to the typedval
     for(Node *n : *node->modifiers){
         int m = ((ModNode*)n)->mod;
-        val->type->addModifier(m);
+        valTy->addModifier(m);
         if(m == Tok_Global) isGlobal = true;
     }
 
     //set the value as mutable
-    if(!val->type->hasModifier(Tok_Mut))
-        val->type->addModifier(Tok_Mut);
+    if(!valTy->hasModifier(Tok_Mut))
+        valTy->addModifier(Tok_Mut);
     
     //location to store var
     Value *ptr = isGlobal ?
             (Value*) new GlobalVariable(*c->module, val->getType(), false, GlobalValue::PrivateLinkage, UndefValue::get(val->getType()), node->name) :
             c->builder.CreateAlloca(val->getType(), nullptr, node->name.c_str());
 
-    TypedValue *alloca = new TypedValue(ptr, val->type);
+    TypedValue *alloca = new TypedValue(ptr, valTy);
 
-    bool nofree = true;//val->type->type != TT_Ptr || dynamic_cast<Constant*>(val->val);
+    bool nofree = true;//valTy->type != TT_Ptr || dynamic_cast<Constant*>(val->val);
     c->stoVar(node->name, new Variable(node->name, alloca, c->scope, nofree, true));
 
-    return new TypedValue(c->builder.CreateStore(val->val, alloca->val), val->type);
+    return new TypedValue(c->builder.CreateStore(val->val, alloca->val), valTy);
 }
 
 TypedValue* VarDeclNode::compile(Compiler *c){
@@ -902,7 +915,7 @@ TypedValue* compFieldInsert(Compiler *c, BinOpNode *bop, Node *expr){
                 string mangledfn = mangle(op, tyn, mkAnonTypeNode(TT_I32), newval->type.get());
                 auto *fn = c->getFunction(op, mangledfn);
                 if(fn){
-                    return new TypedValue(c->builder.CreateCall(fn->val, vector<Value*>{var, c->builder.getInt32(index), newval->val}), fn->type->extTy);
+                    return new TypedValue(c->builder.CreateCall(fn->val, vector<Value*>{var, c->builder.getInt32(index), newval->val}), fn->type->extTy.get());
                 }
 
                 //if not, proceed with normal operations
@@ -1174,30 +1187,26 @@ TypedValue* compTaggedUnion(Compiler *c, DataDeclNode *n){
 
     while(nvn){
         TypeNode *tyn = (TypeNode*)nvn->typeExpr.get();
-        UnionTag *tag = new UnionTag(nvn->name, copy(tyn->extTy), tags.size());
+        TypeNode *tynExt = copy(tyn->extTy);
+
+        UnionTag *tag = new UnionTag(nvn->name, tynExt, tags.size());
 
         tags.push_back(shared_ptr<UnionTag>(tag));
-
-        //Each union member's type is a tuple of the tag (a u8 value), and the user-defined value
-        TypeNode *tagTy = tyn->extTy.get();
+        
+        DataType *data = new DataType(nvn->name, union_name, tynExt);
 
         TypeNode *variant = mkAnonTypeNode(TT_U8);
-        variant->next.reset(tagTy);
+        variant->next.reset(tynExt);
         TypeNode *tup = mkTypeNodeWithExt(TT_Tuple, variant);
 
-        DataType *data = new DataType(nvn->name, union_name, copy(tagTy));
-
-        TypeNode *tupCpy = copy(tup);
         if(curExt){
-            curExt->next.reset(tupCpy);
+            curExt->next.reset(tup);
         }else{
-            unionTy->extTy.reset(tupCpy);
+            unionTy->extTy.reset(tup);
         }
-        curExt = tupCpy;
-        variant->next.release();
-        delete tup;
+        curExt = tup;
 
-        validateType(c, tagTy, n);
+        validateType(c, tynExt, n);
         c->stoType(data, nvn->name);
 
         nvn = (NamedValNode*)nvn->next.get();
@@ -1329,27 +1338,33 @@ TypedValue* GlobalNode::compile(Compiler *c){
         ret = var->tval.get();
     }
 
-    return new TypedValue(c->builder.CreateLoad(ret->val), ret->type);
+    return new TypedValue(c->builder.CreateLoad(ret->val), ret->type.get());
 }
 
 
 TypedValue* handleTypeCastPattern(Compiler *c, MatchNode *mn, TypedValue *lval, TypeCastNode *tn, DataType *tagTy, DataType *parentTy){
     //If this is a generic type cast like Some 't, the 't must be bound to a concrete type first
-    auto *tagtycpy = copy(tagTy->tyn);
+    auto *tagty = tagTy->tyn.get();
     
     //This is a pattern of the match _ with expr, so if that is mutable this should be too
-    tagtycpy->copyModifiersFrom(lval->type.get());
+    if(!lval->type->modifiers.empty()){
+        tagty = copy(tagty);
+        tagty->copyModifiersFrom(lval->type.get());
+    }
 
     auto tcr = c->typeEq(parentTy->tyn.get(), lval->type.get());
 
-    if(tcr->res == TypeCheckResult::SuccessWithTypeVars)
-        bindGenericToType(tagtycpy, tcr->bindings);
-    else if(tcr->res == TypeCheckResult::Failure)
+    if(tcr->res == TypeCheckResult::SuccessWithTypeVars){
+        if(tagty == tagTy->tyn.get())
+            tagty = copy(tagty);
+
+        bindGenericToType(tagty, tcr->bindings);
+    }else if(tcr->res == TypeCheckResult::Failure)
         return c->compErr("Cannot bind pattern of type " + typeNodeToColoredStr(parentTy->tyn.get()) +
                 " to matched value of type " + typeNodeToColoredStr(lval->type), tn->rval->loc);
 
     //cast it from (<tag type>, <largest union member type>) to (<tag type>, <this union member's type>)
-    auto *tupTy = StructType::get(*c->ctxt, {Type::getInt8Ty(*c->ctxt), c->typeNodeToLlvmType(tagtycpy)});
+    auto *tupTy = StructType::get(*c->ctxt, {Type::getInt8Ty(*c->ctxt), c->typeNodeToLlvmType(tagty)});
 
     auto *alloca = addrOf(c, lval);
 
@@ -1357,13 +1372,13 @@ TypedValue* handleTypeCastPattern(Compiler *c, MatchNode *mn, TypedValue *lval, 
 
     if(VarNode *v = dynamic_cast<VarNode*>(tn->rval.get())){
         auto *tup = c->builder.CreateLoad(cast);
-        auto *extract = new TypedValue(c->builder.CreateExtractValue(tup, 1), tagtycpy);
+        auto *extract = new TypedValue(c->builder.CreateExtractValue(tup, 1), tagty);
         c->stoVar(v->name, new Variable(v->name, extract, c->scope));
 
     }else if(TupleNode *t = dynamic_cast<TupleNode*>(tn->rval.get())){
         auto *taggedValTy = tupTy->getStructElementType(1);
         if(!taggedValTy->isStructTy()){
-            return c->compErr("Cannot match tuple pattern against non-tuple type " + typeNodeToColoredStr(tagtycpy), t->loc);
+            return c->compErr("Cannot match tuple pattern against non-tuple type " + typeNodeToColoredStr(tagty), t->loc);
         }
 
         if(t->exprs.size() != taggedValTy->getNumContainedTypes()){
@@ -1371,7 +1386,7 @@ TypedValue* handleTypeCastPattern(Compiler *c, MatchNode *mn, TypedValue *lval, 
                    " to a pattern of size " + to_string(taggedValTy->getNumContainedTypes()), t->loc);
         }
 
-        TypeNode *curTyn = tagtycpy->extTy.get();
+        TypeNode *curTyn = tagty->extTy.get();
         size_t elementNo = 0;
 
         for(auto &e : t->exprs){
@@ -1453,7 +1468,7 @@ TypedValue* MatchNode::compile(Compiler *c){
 
         //variable/match-all pattern: _
         }else if(VarNode *vn = dynamic_cast<VarNode*>(mbn->pattern.get())){
-            auto *tn = new TypedValue(lval->val, lval->type);
+            auto *tn = new TypedValue(lval->val, lval->type.get());
             match->setDefaultDest(br);
             c->stoVar(vn->name, new Variable(vn->name, tn, c->scope));
         }else{
@@ -1494,7 +1509,7 @@ TypedValue* MatchNode::compile(Compiler *c){
         i++;
     }
     phi->addIncoming(UndefValue::get(merges[0].second->getType()), matchbb);
-    return new TypedValue(phi, merges[0].second->type);
+    return new TypedValue(phi, merges[0].second->type.get());
 }
 
 
