@@ -361,10 +361,13 @@ ReinterpretCastResult checkForReinterpretCast(Compiler *c, TypeNode *castTyn, Ty
         dataTy = c->lookupType(valToCast->type->typeName);
         if(dataTy and dataTy->tyn){
             TypeNode *wrapper = castTyn->type != TT_Tuple and dataTy->tyn->type == TT_Tuple
-                            ? mkTypeNodeWithExt(TT_Tuple, castTyn)
+                            ? mkTypeNodeWithExt(TT_Tuple, copy(castTyn))
                             : castTyn;
        
             auto tc = c->typeEq(dataTy->tyn.get(), wrapper);
+            if(wrapper != castTyn)
+                delete wrapper;
+
             if(!!tc){
                 return {ReinterpretCastResult::ValToPrimitive, tc, dataTy};
             }
