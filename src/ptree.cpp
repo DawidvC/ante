@@ -389,8 +389,7 @@ Node* mkRetNode(LOC_TY loc, Node* expr){
 //returns true if type->extTy should be defined
 bool typeHasExtData(TypeTag t){
     return t == TT_Tuple or t == TT_Array or t == TT_Ptr or t == TT_Data or t == TT_Function
-        or t == TT_TaggedUnion or t == TT_MetaFunction;
-    
+        or t == TT_TaggedUnion or t == TT_MetaFunction or t == TT_FunctionList;
 }
 
 TypeNode* copy(const unique_ptr<TypeNode> &n);
@@ -412,7 +411,9 @@ TypeNode* copy(const TypeNode *n){
             auto *len_cpy = new IntLitNode(loc_cpy, len->val, len->type);
             cpy->extTy->next.reset(len_cpy);
         }
-    }else if(n->extTy.get()){
+    }else if(n->type == TT_Ptr){
+        cpy->extTy.reset(copy(n->extTy));
+    }else if(n->extTy.get() and typeHasExtData(n->type)){
         TypeNode *nxt = n->extTy.get();
 
         TypeNode *ext = copy(nxt);

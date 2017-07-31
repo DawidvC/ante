@@ -656,9 +656,9 @@ void Compiler::updateFn(TypedValue *f, FuncDecl *fd, string &name, string &mangl
     auto &list = mergedCompUnits->fnDecls[name];
     auto *vec_fd = getFuncDeclFromVec(list, mangledName);
     if(vec_fd){
-        vec_fd->tv = new TypedValue(f->val, f->type.get());
+        vec_fd->tv = new TypedValue(f->val, copy(f->type));
     }else{
-        fd->tv = new TypedValue(f->val, f->type.get());
+        fd->tv = new TypedValue(f->val, copy(f->type));
         list.push_back(shared_ptr<FuncDecl>(fd));
     }
 }

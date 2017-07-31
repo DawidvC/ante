@@ -129,9 +129,9 @@ TypedValue* Compiler::compExtract(TypedValue *l, TypedValue *r, BinOpNode *op){
             vector<Value*> indices;
             indices.push_back(ConstantInt::get(*ctxt, APInt(64, 0, true)));
             indices.push_back(r->val);
-            return new TypedValue(builder.CreateLoad(builder.CreateGEP(arr, indices)), l->type->extTy.get());
+            return new TypedValue(builder.CreateLoad(builder.CreateGEP(arr, indices)), copy(l->type->extTy));
         }else{
-            return new TypedValue(builder.CreateExtractElement(l->val, r->val), l->type->extTy.get());
+            return new TypedValue(builder.CreateExtractElement(l->val, r->val), copy(l->type->extTy));
         }
     }else if(l->type->type == TT_Ptr){
         return new TypedValue(builder.CreateLoad(builder.CreateGEP(l->val, r->val)), l->type->extTy.get());
@@ -161,7 +161,7 @@ TypedValue* Compiler::compExtract(TypedValue *l, TypedValue *r, BinOpNode *op){
             indexTyn = (TypeNode*)indexTyn->next.get();
 
         Value *tup = llvmTypeToTypeTag(l->getType()) == TT_Ptr ? builder.CreateLoad(l->val) : l->val;
-        return new TypedValue(builder.CreateExtractValue(tup, index), indexTyn);
+        return new TypedValue(builder.CreateExtractValue(tup, index), copy(indexTyn));
     }
     return compErr("Type " + typeNodeToColoredStr(l->type) + " does not have elements to access", op->loc);
 }
@@ -195,7 +195,7 @@ TypedValue* Compiler::compInsert(BinOpNode *op, Node *assignExpr){
     auto *fn = getFunction(basefn, mangledfn);
     if(fn){
         vector<Value*> args = {var, index->val, newVal->val};
-        return new TypedValue(builder.CreateCall(fn->val, args), fn->type->extTy.get());
+        return new TypedValue(builder.CreateCall(fn->val, args), copy(fn->type->extTy));
     }
 
     switch(tmp->type->type){
@@ -345,9 +345,6 @@ ReinterpretCastResult checkForReinterpretCast(Compiler *c, TypeNode *castTyn, Ty
                            : valToCast->type.get();
        
         auto tc = c->typeEq(wrapper, dataTy->tyn.get());
-
-        cout << "type check between wrapper " << typeNodeToStr(wrapper) << " and " << typeNodeToStr(dataTy->tyn.get())
-             << " is " << tc->res << " (success is " << TypeCheckResult::Success << ")\n";
 
         if(wrapper != valToCast->type.get())
             delete wrapper;
@@ -778,7 +775,7 @@ TypedValue* Compiler::compMemberAccess(Node *ln, VarNode *field, BinOpNode *bino
 
                     if(!tyn->params.empty()){
                         retTy = copy(retTy);
-                        bindGenericToType(dataTyn, tyn->params, dataTy);
+                        bindGenericToType(retTy, tyn->params, dataTy);
                     }
 
                     //The data type when looking up (usually) does not have any modifiers,
@@ -795,6 +792,7 @@ TypedValue* Compiler::compMemberAccess(Node *ln, VarNode *field, BinOpNode *bino
                     if(index == 0 and !val->getType()->isStructTy())
                         return new TypedValue(val, retTy);
 
+                    //TODO: remove this forced copy for a shallow copy
                     return new TypedValue(builder.CreateExtractValue(val, index), retTy);
                 }
             }
