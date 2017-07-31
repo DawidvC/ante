@@ -261,8 +261,7 @@ TypedValue* compStrInterpolation(Compiler *c, StrLitNode *sln, int pos){
 
     //if the expr is not already a string type, cast it to one
     if(val->type->typeName != "Str"){
-        auto *str_ty = mkAnonTypeNode(TT_Data);
-        str_ty->typeName = "Str";
+		auto *str_ty = mkDataTypeNode("Str");
         auto *fn = c->getCastFn(val->type.get(), str_ty);
 
         if(!fn){
@@ -305,16 +304,13 @@ TypedValue* StrLitNode::compile(Compiler *c){
     if(idx != string::npos && (idx == 0 or val.find("\\${") != idx - 1))
         return compStrInterpolation(c, this, idx);
 
-    TypeNode *strty = mkAnonTypeNode(TT_Data);
-    strty->typeName = "Str";
+    TypeNode *strty = mkDataTypeNode("Str");
 
-    auto *ptr = c->builder.CreateGlobalStringPtr(val);
+    auto *ptr = c->builder.CreateGlobalStringPtr(val, "_strlit");
 
 	//get the llvm Str data type from a fake type node in case we are compiling
 	//the prelude and the Str data type isnt translated into an llvmty yet
-    TypeNode *str_tn = mkDataTypeNode("Str");
-    auto *tupleTy = cast<StructType>(c->typeNodeToLlvmType(str_tn));
-    delete str_tn;
+    auto *tupleTy = cast<StructType>(c->typeNodeToLlvmType(strty));
 
 	vector<Constant*> strarr = {
 		UndefValue::get(Type::getInt8PtrTy(*c->ctxt)),
@@ -1364,7 +1360,7 @@ TypedValue* handleTypeCastPattern(Compiler *c, MatchNode *mn, TypedValue *lval, 
                 " to matched value of type " + typeNodeToColoredStr(lval->type), tn->rval->loc);
 
     //cast it from (<tag type>, <largest union member type>) to (<tag type>, <this union member's type>)
-    auto *tupTy = StructType::get(*c->ctxt, {Type::getInt8Ty(*c->ctxt), c->typeNodeToLlvmType(tagty)});
+    auto *tupTy = StructType::get(*c->ctxt, {Type::getInt8Ty(*c->ctxt), c->typeNodeToLlvmType(tagty)}, true);
 
     auto *alloca = addrOf(c, lval);
 
@@ -1482,7 +1478,9 @@ TypedValue* MatchNode::compile(Compiler *c){
             c->builder.CreateBr(end);
         
         merges.push_back(pair<BasicBlock*,TypedValue*>(c->builder.GetInsertBlock(), then));
-        match->addCase(ci, br);
+
+        if(ci)
+            match->addCase(ci, br);
     }
 
     f->getBasicBlockList().push_back(end);
@@ -1946,12 +1944,26 @@ string typeNodeToStrWithModifiers(TypeNode *tn){
 void TypedValue::dump() const{
     cout << "type:\t" << typeNodeToStrWithModifiers(type.get()) << endl
          << "val:\t" << flush;
-    
+
     if(type->type == TT_Void)
         puts("void ()");
     else if(type->type == TT_Type)
         cout << typeNodeToStr(extractTypeValue(this)) << endl;
-    else
+    else if(type->type == TT_FunctionList){
+        auto *fl = (FunctionCandidates*)this;
+        cout << "(" << fl->candidates.size() << " function" << (fl->candidates.size() == 1 ? ")\n" : "s\n");
+
+        for(auto &c : fl->candidates){
+            cout << endl << c->fdn->basename << " (" << c->fdn->name << " ): \n";
+            if(c->tv){
+                c->tv->dump();
+            }else{
+                cout << "(not yet compiled)\n\n";
+            }
+            cout << "Parse tree:\n";
+            c->fdn->print();
+        }
+    }else
         val->dump();
 }
 

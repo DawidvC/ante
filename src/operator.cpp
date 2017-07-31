@@ -279,7 +279,7 @@ TypedValue* createUnionVariantCast(Compiler *c, TypedValue *valToCast, TypeNode 
     Type *unionTy = c->typeNodeToLlvmType(dtcpy);
 
     //create a struct of (u8 tag, <union member type>)
-    auto *uninitUnion = ConstantStruct::get(StructType::get(*c->ctxt, unionTys), unionVals);
+    auto *uninitUnion = ConstantStruct::get(StructType::get(*c->ctxt, unionTys, true), unionVals);
     auto* taggedUnion = c->builder.CreateInsertValue(uninitUnion, valToCast->val, 1);
 
     //allocate for the largest possible union member
@@ -346,7 +346,8 @@ ReinterpretCastResult checkForReinterpretCast(Compiler *c, TypeNode *castTyn, Ty
        
         auto tc = c->typeEq(wrapper, dataTy->tyn.get());
 
-        cout << "type check between wrapper " << typeNodeToStr(wrapper) << " and " << typeNodeToStr(dataTy->tyn.get()) << endl;
+        cout << "type check between wrapper " << typeNodeToStr(wrapper) << " and " << typeNodeToStr(dataTy->tyn.get())
+             << " is " << tc->res << " (success is " << TypeCheckResult::Success << ")\n";
 
         if(wrapper != valToCast->type.get())
             delete wrapper;
@@ -728,7 +729,7 @@ TypedValue* Compiler::compMemberAccess(Node *ln, VarNode *field, BinOpNode *bino
         auto& l = getFunctionList(valName);
 
         if(!l.empty())
-            return new FunctionCandidates(l, nullptr);
+            return new FunctionCandidates(ctxt.get(), l, nullptr);
 
         return compErr("No static method called '" + field->name + "' was found in type " + 
                 typeNodeToColoredStr(tn), binop->loc);
@@ -807,7 +808,7 @@ TypedValue* Compiler::compMemberAccess(Node *ln, VarNode *field, BinOpNode *bino
 
         if(!l.empty()){
             TypedValue *obj = new TypedValue(val, tyn);
-            return new FunctionCandidates(l, obj);
+            return new FunctionCandidates(ctxt.get(), l, obj);
         }else{
             return compErr("Method/Field " + field->name + " not found in type " + typeNodeToColoredStr(tyn), binop->loc);
         }
@@ -1011,6 +1012,38 @@ string getName(Node *n){
         return "";
 }
 
+#ifdef _WIN32
+void* lookupCFn(string name){
+    static map<string,void*> fnMap = {
+        {"printf",  (void*)printf},
+        {"puts",    (void*)puts},
+        {"putchar", (void*)putchar},
+        {"getchar", (void*)getchar},
+        {"exit",    (void*)exit},
+        {"malloc",  (void*)malloc},
+        {"realloc", (void*)realloc},
+        {"free",    (void*)free},
+        {"memcpy",  (void*)memcpy},
+        {"system",  (void*)system},
+        {"strlen",  (void*)strlen},
+        {"fopen",   (void*)fopen},
+        {"fclose",  (void*)fclose},
+        {"fputs",   (void*)fputs},
+        {"fputc",   (void*)fputc},
+        {"fgetc",   (void*)fgetc},
+        {"fgets",   (void*)fgets},
+        {"ungetc",  (void*)ungetc},
+        {"fgetpos", (void*)fgetpos},
+        {"ftell",   (void*)ftell},
+        {"fsetpos", (void*)fsetpos},
+        {"fseek",   (void*)fseek},
+        {"feof",    (void*)feof},
+        {"ferror",  (void*)ferror}
+    };
+
+    return fnMap[name];
+}
+#endif
 
 
 extern map<string, CtFunc*> compapi;
@@ -1055,7 +1088,7 @@ TypedValue* compMetaFunctionResult(Compiler *c, LOC_TY &loc, string &baseName, s
         auto mod_compiler = wrapFnInModule(c, baseName, mangledName);
         mod_compiler->ast.release();
         auto *mod = mod_compiler->module.release();
-        
+
         if(!mod_compiler or mod_compiler->errFlag or !mod){
             c->errFlag = true;
             throw new CtError();
@@ -1074,6 +1107,20 @@ TypedValue* compMetaFunctionResult(Compiler *c, LOC_TY &loc, string &baseName, s
             cerr << err << endl;
             return 0;
         }
+
+#ifdef _WIN32
+        jit->DisableSymbolSearching();
+        for(auto &f : mod->getFunctionList()){
+            if(f.isDeclaration()){
+                try{
+                    auto fAddr = lookupCFn(f.getName().str());
+                    jit->addGlobalMapping(&f, fAddr);
+                }catch(out_of_range r){
+                    c->compErr("Cannot link to unknown external function "+f.getName().str()+ " in compile-time module", loc);
+                }
+            }
+        }
+#endif
 
         auto args = typedValuesToGenericValues(c, typedArgs, loc, baseName);
 
