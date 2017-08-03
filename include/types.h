@@ -9,12 +9,13 @@
 
 namespace ante {
 
-    TypedValue* typeCheckWithImplicitCasts(Compiler *c, TypedValue *arg, TypeNode *ty);
+    TypedValue typeCheckWithImplicitCasts(Compiler *c, TypedValue &arg, TypeNode *ty);
 
     TypeNode* deepCopyTypeNode(const TypeNode *n);
     string typeNodeToStr(const TypeNode *t);
     lazy_str typeNodeToColoredStr(const TypeNode *t);
     lazy_str typeNodeToColoredStr(const unique_ptr<TypeNode>& tn);
+    lazy_str typeNodeToColoredStr(const shared_ptr<TypeNode>& tn);
 
     //Typevar creation with no yy::location
     TypeNode* mkAnonTypeNode(TypeTag);
@@ -32,7 +33,7 @@ namespace ante {
     //typevar utility functions
     void validateType(Compiler *c, const TypeNode* tn, const DataDeclNode* rootTy);
     void validateType(Compiler *c, const TypeNode *tn, const DataType *dt);
-    TypeNode* extractTypeValue(const TypedValue *tv);
+    TypeNode* extractTypeValue(const TypedValue &tv);
     TypeNode* extractTypeValue(const unique_ptr<TypedValue> &tv);
     void bindGenericToType(TypeNode *tn, const vector<pair<string, unique_ptr<TypeNode>>> &bindings);
     void bindGenericToType(TypeNode *tn, const vector<unique_ptr<TypeNode>> &bindings, DataType *dt);

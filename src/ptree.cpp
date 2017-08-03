@@ -448,6 +448,10 @@ TypeNode* copy(const unique_ptr<TypeNode> &n){
     return copy(n.get());
 }
 
+TypeNode* copy(const shared_ptr<TypeNode> &n){
+    return copy(n.get());
+}
+
 
 /*
  *  This may create several NamedVal nodes depending on the

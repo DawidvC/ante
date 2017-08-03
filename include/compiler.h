@@ -23,6 +23,7 @@ namespace ante {
 
     extern TypeNode* copy(const TypeNode*);
     extern TypeNode* copy(const unique_ptr<TypeNode>&);
+    extern TypeNode* copy(const shared_ptr<TypeNode>&);
 
     /**
     * @brief A Value* and TypeNode* pair
@@ -31,9 +32,13 @@ namespace ante {
     */
     struct TypedValue {
         Value *val;
-        unique_ptr<TypeNode> type;
+        shared_ptr<TypeNode> type;
 
+        TypedValue() : val(nullptr), type(nullptr){}
         TypedValue(Value *v, TypeNode *ty) : val(v), type(ty){}
+        TypedValue(Value *v, shared_ptr<TypeNode> &ty) : val(v), type(ty){}
+
+        bool operator!() const{ return !val; }
         
         Type* getType() const{ return val->getType(); }
         /**
@@ -70,7 +75,7 @@ namespace ante {
             Result res;
             unsigned int matches;
             vector<pair<string,unique_ptr<TypeNode>>> bindings;
-            
+
             Internals() : res(Success), matches(0), bindings(){}
         };
 
@@ -136,7 +141,7 @@ namespace ante {
     struct FuncDecl {
         FuncDeclNode* fdn;
         unsigned int scope;
-        TypedValue *tv;
+        TypedValue tv;
 
         TypeNode *obj;
 
@@ -144,10 +149,10 @@ namespace ante {
         vector<pair<string, TypeNode*>> obj_bindings;
 
         shared_ptr<Module> module;
-        vector<pair<TypedValue*,LOC_TY>> returns;
+        vector<pair<TypedValue,LOC_TY>> returns;
 
-        FuncDecl(FuncDeclNode *fn, unsigned int s, shared_ptr<Module> mod, TypedValue *f=0) : fdn(fn), scope(s), tv(f), module(mod), returns(){}
-        ~FuncDecl(){ if(fdn) delete fdn; if(tv) delete tv; }
+        FuncDecl(FuncDeclNode *fn, unsigned int s, shared_ptr<Module> mod) : fdn(fn), scope(s), module(mod), returns(){}
+        ~FuncDecl(){ if(fdn) delete fdn; }
     };
     
     TypeNode* mkAnonTypeNode(TypeTag);
@@ -160,9 +165,9 @@ namespace ante {
      */
     struct FunctionCandidates : public TypedValue {
         vector<shared_ptr<FuncDecl>> candidates;
-        TypedValue *obj;
+        TypedValue obj;
 
-        FunctionCandidates(LLVMContext *c, vector<shared_ptr<FuncDecl>> &ca, TypedValue *o) :
+        FunctionCandidates(LLVMContext *c, vector<shared_ptr<FuncDecl>> &ca, TypedValue o) :
             TypedValue(UndefValue::get(Type::getInt8Ty(*c)),
             mkAnonTypeNode(TT_FunctionList)), candidates(ca), obj(o){}
     };
@@ -266,7 +271,7 @@ namespace ante {
         /**
         * @brief The value assigned to the variable
         */
-        unique_ptr<TypedValue> tval;
+        TypedValue tval;
         unsigned int scope;
 
         /** @brief Flag for managed pointers.  Currently unused */
@@ -279,18 +284,18 @@ namespace ante {
         bool autoDeref;
 
         Value* getVal() const{
-            return tval->val;
+            return tval.val;
         }
 
         TypeTag getType() const{
-            return tval->type->type;
+            return tval.type->type;
         }
 
         /**
         * @return True if this is a managed pointer
         */
         bool isFreeable() const{
-            return tval->type? tval->type->type == TT_Ptr && !noFree : false;
+            return tval.type? tval.type->type == TT_Ptr && !noFree : false;
         }
 
         /**
@@ -302,7 +307,8 @@ namespace ante {
         * @param nofr True if the variable should not be free'd
         * @param autoDr True if the variable should be autotomatically dereferenced
         */
-        Variable(string n, TypedValue *tv, unsigned int s, bool nofr=true, bool autoDr=false) : name(n), tval(tv), scope(s), noFree(nofr), autoDeref(autoDr){}
+        Variable(string n, TypedValue tv, unsigned int s, bool nofr=true, bool autoDr=false) :
+            name(n), tval(tv), scope(s), noFree(nofr), autoDeref(autoDr){}
     };
 
     /**
@@ -318,7 +324,7 @@ namespace ante {
 
         size_t numParams() const { return params.size(); }
         bool typeCheck(vector<TypeNode*> &args);
-        bool typeCheck(vector<TypedValue*> &args);
+        bool typeCheck(vector<TypedValue> &args);
         CtFunc(void* fn);
         CtFunc(void* fn, TypeNode *retTy);
         CtFunc(void* fn, TypeNode *retTy, vector<TypeNode*> params);
@@ -326,9 +332,9 @@ namespace ante {
         ~CtFunc(){ for(auto *tv : params) delete tv; }
 
         void* operator()();
-        void* operator()(TypedValue *tv);
-        void* operator()(Compiler *c, TypedValue *tv);
-        void* operator()(TypedValue *p1, TypedValue *p2);
+        void* operator()(TypedValue tv);
+        void* operator()(Compiler *c, TypedValue tv);
+        void* operator()(TypedValue p1, TypedValue p2);
     };
 
 
@@ -510,11 +516,11 @@ namespace ante {
          *
          * @return The resulting add instruction
          */
-        TypedValue* compAdd(TypedValue *l, TypedValue *r, BinOpNode *op);
-        TypedValue* compSub(TypedValue *l, TypedValue *r, BinOpNode *op);
-        TypedValue* compMul(TypedValue *l, TypedValue *r, BinOpNode *op);
-        TypedValue* compDiv(TypedValue *l, TypedValue *r, BinOpNode *op);
-        TypedValue* compRem(TypedValue *l, TypedValue *r, BinOpNode *op);
+        TypedValue compAdd(TypedValue &l, TypedValue &r, BinOpNode *op);
+        TypedValue compSub(TypedValue &l, TypedValue &r, BinOpNode *op);
+        TypedValue compMul(TypedValue &l, TypedValue &r, BinOpNode *op);
+        TypedValue compDiv(TypedValue &l, TypedValue &r, BinOpNode *op);
+        TypedValue compRem(TypedValue &l, TypedValue &r, BinOpNode *op);
         
         /**
          * @brief Compiles an extract operation such as array#index
@@ -527,7 +533,7 @@ namespace ante {
          *
          * @return The result of the extraction
          */
-        TypedValue* compExtract(TypedValue *l, TypedValue *r, BinOpNode *op);
+        TypedValue compExtract(TypedValue &l, TypedValue &r, BinOpNode *op);
         
         /**
          * @brief Compiles an insert operation such as array#index = 2
@@ -537,7 +543,7 @@ namespace ante {
          *
          * @return A void literal
          */
-        TypedValue* compInsert(BinOpNode *insertOp, Node *assignExpr);
+        TypedValue compInsert(BinOpNode *insertOp, Node *assignExpr);
         
         /**
          * @brief Compiles a named member access such as str.len
@@ -548,16 +554,16 @@ namespace ante {
          *
          * @return The extracted field or method
          */
-        TypedValue* compMemberAccess(Node *ln, VarNode *field, BinOpNode *binop);
-        TypedValue* compLogicalOr(Node *l, Node *r, BinOpNode *op);
-        TypedValue* compLogicalAnd(Node *l, Node *r, BinOpNode *op);
+        TypedValue compMemberAccess(Node *ln, VarNode *field, BinOpNode *binop);
+        TypedValue compLogicalOr(Node *l, Node *r, BinOpNode *op);
+        TypedValue compLogicalAnd(Node *l, Node *r, BinOpNode *op);
 
         /**
          * @brief Reports a message and highlights the relevant source lines.
          *
          * @param t Type of message to report, either Error, Warning, or Note
          */
-        TypedValue* compErr(lazy_printer msg, const yy::location& loc, ErrorType t = ErrorType::Error);
+        TypedValue compErr(lazy_printer msg, const yy::location& loc, ErrorType t = ErrorType::Error);
 
         /**
         * @brief JIT compiles a function with no arguments and calls it afterward
@@ -578,11 +584,11 @@ namespace ante {
         void importFile(const char *name, Node* locNode = 0);
         
         /** @brief Sets the tv of the FuncDecl specified to the value of f */
-        void updateFn(TypedValue *f, FuncDecl *fd, string &name, string &mangledName);
+        void updateFn(TypedValue &f, FuncDecl *fd, string &name, string &mangledName);
         FuncDecl* getCurrentFunction() const;
         
         /** @brief Returns the exact function specified if found or nullptr if not */
-        TypedValue* getFunction(string& name, string& mangledName);
+        TypedValue getFunction(string& name, string& mangledName);
 
         /** @brief Returns a vector of all functions with the specified baseName */
         vector<shared_ptr<FuncDecl>>& getFunctionList(string& name) const;
@@ -591,7 +597,7 @@ namespace ante {
         FuncDecl* getFuncDecl(string bn, string mangledName);
 
         /** @brief Emits and returns a function call */
-        TypedValue* callFn(string fnBaseName, vector<TypedValue*> args);
+        TypedValue callFn(string fnBaseName, vector<TypedValue> args);
 
         /**
          * @brief Retrieves the function specified
@@ -604,7 +610,7 @@ namespace ante {
          *
          * @return The specified function or nullptr
          */
-        TypedValue* getMangledFn(string name, vector<TypeNode*> args);
+        TypedValue getMangledFn(string name, vector<TypeNode*> args);
         
         /**
          * @brief Returns the init method of a type
@@ -615,7 +621,7 @@ namespace ante {
          *
          * @return The compiled cast function or nullptr if not found
          */
-        TypedValue* getCastFn(TypeNode *from_ty, TypeNode *to_ty, FuncDecl *fd = 0);
+        TypedValue getCastFn(TypeNode *from_ty, TypeNode *to_ty, FuncDecl *fd = 0);
         
         /**
          * @brief Retrieves the FuncDecl specified
@@ -629,7 +635,7 @@ namespace ante {
         FuncDecl* getCastFuncDecl(TypeNode *from_ty, TypeNode *to_ty);
         
         /** @brief Compiles a function with inferred return type */
-        TypedValue* compLetBindingFn(FuncDecl *fdn, vector<Type*> &paramTys);
+        TypedValue compLetBindingFn(FuncDecl *fdn, vector<Type*> &paramTys);
 
         /**
          * @brief Compiles any non-generic function
@@ -638,7 +644,7 @@ namespace ante {
          * TypeCheckResult::SuccessWithTypeVars) should be compiled
          * with compTemplateFn which calls this function internally.
          */
-        TypedValue* compFn(FuncDecl *fn);
+        TypedValue compFn(FuncDecl *fn);
         void registerFunction(FuncDeclNode *func);
 
         unsigned int getScope() const;
@@ -744,19 +750,19 @@ namespace ante {
          *
          * @return The widened integer
          */
-        TypedValue* implicitlyWidenNum(TypedValue *num, TypeTag castTy);
+        TypedValue implicitlyWidenNum(TypedValue &num, TypeTag castTy);
         
         /** @brief Mutates numerical arguments to match types if possible */
-        void handleImplicitConversion(TypedValue **lhs, TypedValue **rhs);
+        void handleImplicitConversion(TypedValue *lhs, TypedValue *rhs);
         
         /** @brief Mutates integer arguments to match types if not already */
-        void implicitlyCastIntToInt(TypedValue **lhs, TypedValue **rhs);
+        void implicitlyCastIntToInt(TypedValue *lhs, TypedValue *rhs);
         
         /** @brief Mutates floating-point arguments to match types if not already */
-        void implicitlyCastFltToFlt(TypedValue **lhs, TypedValue **rhs);
+        void implicitlyCastFltToFlt(TypedValue *lhs, TypedValue *rhs);
         
         /** @brief Mutates an integer to a float */
-        void implicitlyCastIntToFlt(TypedValue **tval, Type *ty);
+        void implicitlyCastIntToFlt(TypedValue *tval, Type *ty);
         
         /**
         * @brief Compiles a module into an obj file to be used for linking.
@@ -768,7 +774,7 @@ namespace ante {
         */
         int compileIRtoObj(llvm::Module *mod, string outFile);
 
-        TypedValue* getVoidLiteral();
+        TypedValue getVoidLiteral();
 
         /**
         * @brief Invokes the linker specified by AN_LINKER (in target.h) to
@@ -782,7 +788,7 @@ namespace ante {
         static int linkObj(string inFiles, string outFile);
     };
 
-    TypedValue* addrOf(Compiler *c, TypedValue* tv);
+    TypedValue addrOf(Compiler *c, TypedValue tv);
 
     /**
     * @brief Retrieves the Nth node of a list
@@ -806,7 +812,7 @@ namespace ante {
     TypeNode* toList(vector<TypeNode*> &nodes);
 
     /** @brief Extracts the type of each arg into a TypeNode vector */
-    vector<TypeNode*> toTypeNodeVector(vector<TypedValue*> &tvs);
+    vector<TypeNode*> toTypeNodeVector(vector<TypedValue> &tvs);
 
     string mangle(string &base, vector<TypeNode*> params);
     string mangle(string &base, NamedValNode *paramTys);

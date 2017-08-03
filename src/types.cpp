@@ -309,7 +309,7 @@ void Compiler::searchAndReplaceBoundTypeVars(TypeNode* tn) const{
  *  Checks for, and implicitly widens an integer or float type.
  *  The original value of num is returned if no widening can be performed.
  */
-TypedValue* Compiler::implicitlyWidenNum(TypedValue *num, TypeTag castTy){
+TypedValue Compiler::implicitlyWidenNum(TypedValue *num, TypeTag castTy){
     bool lIsInt = isIntTypeTag(num->type->type);
     bool lIsFlt = isFPTypeTag(num->type->type);
 
@@ -328,7 +328,7 @@ TypedValue* Compiler::implicitlyWidenNum(TypedValue *num, TypeTag castTy){
         //integer widening
         if(lIsInt and rIsInt){
             if(lbw <= rbw){
-                return new TypedValue(
+                return TypedValue(
                     builder.CreateIntCast(num->val, ty, !isUnsignedTypeTag(num->type->type)),
                     mkAnonTypeNode(castTy)
                 );
@@ -336,7 +336,7 @@ TypedValue* Compiler::implicitlyWidenNum(TypedValue *num, TypeTag castTy){
 
         //int -> flt, (flt -> int is never implicit)
         }else if(lIsInt and rIsFlt){
-            return new TypedValue(
+            return TypedValue(
                 isUnsignedTypeTag(num->type->type)
                     ? builder.CreateUIToFP(num->val, ty)
                     : builder.CreateSIToFP(num->val, ty),
@@ -347,7 +347,7 @@ TypedValue* Compiler::implicitlyWidenNum(TypedValue *num, TypeTag castTy){
         //float widening
         }else if(lIsFlt and rIsFlt){
             if(lbw < rbw){
-                return new TypedValue(
+                return TypedValue(
                     builder.CreateFPExt(num->val, ty),
                     mkAnonTypeNode(castTy)
                 );
@@ -366,21 +366,21 @@ TypedValue* Compiler::implicitlyWidenNum(TypedValue *num, TypeTag castTy){
  *  it is sign extended.
  *  Assumes the llvm::Type of both values to be an instance of IntegerType.
  */
-void Compiler::implicitlyCastIntToInt(TypedValue **lhs, TypedValue **rhs){
+void Compiler::implicitlyCastIntToInt(TypedValue *lhs, TypedValue *rhs){
     int lbw = getBitWidthOfTypeTag((*lhs)->type->type);
     int rbw = getBitWidthOfTypeTag((*rhs)->type->type);
 
     if(lbw != rbw){
         //Cast the value with the smaller bitwidth to the type with the larger bitwidth
         if(lbw < rbw){
-            auto *ret = new TypedValue(
+            auto ret = TypedValue(
                 builder.CreateIntCast((*lhs)->val, (*rhs)->getType(), !isUnsignedTypeTag((*lhs)->type->type)),
                 (*rhs)->type.get());
             
             *lhs = ret;
 
         }else{//lbw > rbw
-            auto *ret = new TypedValue(
+            auto ret = TypedValue(
                 builder.CreateIntCast((*rhs)->val, (*lhs)->getType(), !isUnsignedTypeTag((*rhs)->type->type)),
                 (*lhs)->type.get());
 
