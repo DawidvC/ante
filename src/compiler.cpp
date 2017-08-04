@@ -685,7 +685,7 @@ TypedValue VarNode::compile(Compiler *c){
         }else if(fnlist.empty()){
             return c->compErr("Variable or function '" + name + "' has not been declared.", this->loc);
         }else{
-            return c->compErr("Too many candidates for function '" + name + "' to reduce to a single instance", this->loc);
+            return FunctionCandidates(c->ctxt.get(), fnlist, {});
         }
     }
 }
@@ -1914,7 +1914,7 @@ int Compiler::compileIRtoObj(llvm::Module *mod, string outFile){
 
 
 int Compiler::linkObj(string inFiles, string outFile){
-    string cmd = AN_LINKER " " + inFiles + " -o " + outFile;
+    string cmd = AN_LINKER " " + inFiles + " -static -o " + outFile;
     return system(cmd.c_str());
 }
 
