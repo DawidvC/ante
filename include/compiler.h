@@ -25,6 +25,8 @@ namespace ante {
     extern TypeNode* copy(const unique_ptr<TypeNode>&);
     extern TypeNode* copy(const shared_ptr<TypeNode>&);
 
+    typedef shared_ptr<TypeNode> sptn;
+
     /**
     * @brief A Value* and TypeNode* pair
     *
@@ -37,6 +39,11 @@ namespace ante {
         TypedValue() : val(nullptr), type(nullptr){}
         TypedValue(Value *v, TypeNode *ty) : val(v), type(ty){}
         TypedValue(Value *v, shared_ptr<TypeNode> &ty) : val(v), type(ty){}
+        ~TypedValue(){
+            char buffer[sizeof(sptn) + alignof(sptn)];
+            char *aligned_buffer = buffer + alignof(sptn) - reinterpret_cast<intptr_t>(buffer) % alignof(sptn);
+            new (aligned_buffer) sptn(type);
+        }
 
         bool operator!() const{ return !val; }
         
@@ -332,9 +339,9 @@ namespace ante {
         ~CtFunc(){ for(auto *tv : params) delete tv; }
 
         void* operator()();
-        void* operator()(TypedValue tv);
-        void* operator()(Compiler *c, TypedValue tv);
-        void* operator()(TypedValue p1, TypedValue p2);
+        void* operator()(TypedValue &tv);
+        void* operator()(Compiler *c, TypedValue &tv);
+        void* operator()(TypedValue &p1, TypedValue &p2);
     };
 
 
@@ -788,7 +795,7 @@ namespace ante {
         static int linkObj(string inFiles, string outFile);
     };
 
-    TypedValue addrOf(Compiler *c, TypedValue tv);
+    TypedValue addrOf(Compiler *c, TypedValue &tv);
 
     /**
     * @brief Retrieves the Nth node of a list

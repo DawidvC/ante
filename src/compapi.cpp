@@ -8,15 +8,15 @@ extern "C" {
         return ante::parser::getRootNode();
     }
 
-    void Ante_debug(ante::TypedValue *tv){
-        tv->dump();
+    void Ante_debug(ante::TypedValue &tv){
+        tv.dump();
     }
 
-    size_t Ante_sizeof(ante::Compiler *c, ante::TypedValue *tv){
-        if(tv->type->type == ante::TT_Type){
+    size_t Ante_sizeof(ante::Compiler *c, ante::TypedValue &tv){
+        if(tv.type->type == ante::TT_Type){
             return extractTypeValue(tv)->getSizeInBits(c) / 8;
         }else{
-            return tv->type->getSizeInBits(c) / 8;
+            return tv.type->getSizeInBits(c) / 8;
         }
     }
 
@@ -41,20 +41,20 @@ namespace ante {
         return resfn();
     }
 
-    void* CtFunc::operator()(TypedValue *tv){
-        void* (*resfn)(TypedValue*) = 0;
+    void* CtFunc::operator()(TypedValue &tv){
+        void* (*resfn)(TypedValue&) = 0;
         *reinterpret_cast<void**>(&resfn) = fn;
         return resfn(tv);
     }
 
-    void* CtFunc::operator()(Compiler *c, TypedValue *tv){
-        void* (*resfn)(Compiler*, TypedValue*) = 0;
+    void* CtFunc::operator()(Compiler *c, TypedValue &tv){
+        void* (*resfn)(Compiler*, TypedValue&) = 0;
         *reinterpret_cast<void**>(&resfn) = fn;
         return resfn(c, tv);
     }
 
-    void* CtFunc::operator()(TypedValue *tv1, TypedValue *tv2){
-        void* (*resfn)(TypedValue*, TypedValue*) = 0;
+    void* CtFunc::operator()(TypedValue &tv1, TypedValue &tv2){
+        void* (*resfn)(TypedValue&, TypedValue&) = 0;
         *reinterpret_cast<void**>(&resfn) = fn;
         return resfn(tv1, tv2);
     }

@@ -1947,7 +1947,7 @@ void TypedValue::dump() const{
     if(type->type == TT_Void)
         puts("void ()");
     else if(type->type == TT_Type)
-        cout << typeNodeToStr(extractTypeValue(this)) << endl;
+        cout << typeNodeToStr(extractTypeValue(*this)) << endl;
     else if(type->type == TT_FunctionList){
         auto *fl = (FunctionCandidates*)this;
         cout << "(" << fl->candidates.size() << " function" << (fl->candidates.size() == 1 ? ")\n" : "s\n");
