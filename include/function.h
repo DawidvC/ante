@@ -9,6 +9,7 @@ namespace ante {
 
     FunctionListTCResults filterBestMatches(Compiler *c, vector<shared_ptr<FuncDecl>> candidates, vector<TypeNode*> args);
     TypedValue* compFnWithArgs(Compiler *c, FuncDecl *fd, vector<TypeNode*> args);
+    TypeNode* tupleToList(TypeNode *tup);
 }
 
 #endif

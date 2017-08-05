@@ -507,6 +507,19 @@ TypedValue* createCast(Compiler *c, TypeNode *castTyn, TypedValue *valToCast){
 TypedValue* TypeCastNode::compile(Compiler *c){
     auto *rtval = rval->compile(c);
 
+    //just a generic binding
+    if(rtval->type->type == TT_Type){
+        auto *ty = copy(typeExpr);
+        auto *params = tupleToList(extractTypeValue(rtval));
+
+        for(auto *pa : *params){
+            auto *p = copy((TypeNode*)pa);
+            ty->params.emplace_back(p);
+        }
+        Value *addr = c->builder.getInt64((unsigned long)ty);
+        return new TypedValue(addr, mkAnonTypeNode(TT_Type));
+    }
+
     auto *ty = copy(typeExpr);
     c->searchAndReplaceBoundTypeVars(ty);
 

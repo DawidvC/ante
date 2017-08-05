@@ -71,7 +71,7 @@ obj:
 
 debug_parser:
 	@echo Generating parser.output file...
-	$(YACC) $(YACCFLAGS) -v src/syntax.y
+	@$(YACC) $(YACCFLAGS) -v src/syntax.y
 
 
 obj/%.o: src/%.cpp Makefile | obj

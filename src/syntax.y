@@ -113,7 +113,7 @@ void yyerror(const char *msg);
 %right ApplyL
 %left ApplyR
 
-%nonassoc '!'
+%right '!'
 
 %left Or
 %left And
@@ -244,16 +244,19 @@ tuple_type: '(' type_expr ')'  {$$ = $2;}
           ;
 
 generic_type: type '!' type           {$$ = $1; ((TypeNode*)$1)->params.push_back(unique_ptr<TypeNode>((TypeNode*)$3));}
-            | type '<' type_expr_ '>' {$$ = $1; ((TypeNode*)$1)->params = concat(move(((TypeNode*)$1)->params), getRoot());}
             | generic_type '!' type   {$$ = $1; ((TypeNode*)$1)->params.push_back(unique_ptr<TypeNode>((TypeNode*)$3));}
             ;
 
-type: pointer_type  %prec STMT  {$$ = $1;}
-    | arr_type      %prec STMT  {$$ = $1;}
-    | fn_type       %prec STMT  {$$ = $1;}
-    | lit_type      %prec STMT  {$$ = $1;}
-    | generic_type  %prec STMT  {$$ = $1;}
-    | tuple_type    %prec STMT  {$$ = $1;} 
+type_no_generic: pointer_type  %prec STMT  {$$ = $1;}
+               | arr_type      %prec STMT  {$$ = $1;}
+               | fn_type       %prec STMT  {$$ = $1;}
+               | lit_type      %prec STMT  {$$ = $1;}
+               | generic_type  %prec LOW   {$$ = $1;}
+               | tuple_type    %prec STMT  {$$ = $1;}
+               ;
+
+type: type_no_generic %prec MED
+    | type tuple_type           {$$ = $1; ((TypeNode*)$1)->params = toOwnedVec($2);}
     ;
 
 type_expr_: type_expr_ ',' type  %prec MED {$$ = setNext($1, $3);}
@@ -343,16 +346,11 @@ trait_fn: modifier_list Fun fn_name ':' params RArrow type_expr   {$$ = mkFuncDe
         ;
 
 
-typevar_list: typevar_list '!' typevar  {$$ = setNext($1, mkTypeNode(@3, TT_TypeVar, (char*)$3));}
-            | '!' typevar               {$$ = setRoot(mkTypeNode(@$, TT_TypeVar, (char*)$2));}
-            ;
-
 typevar_list_comma: typevar_list_comma ',' typevar  {$$ = setNext($1, mkTypeNode(@3, TT_TypeVar, (char*)$3));}
                   | typevar                         {$$ = setRoot(mkTypeNode(@$, TT_TypeVar, (char*)$1));}
                   ;
 
-generic_params: typevar_list               {$$ = getRoot();}
-              | '<' typevar_list_comma '>' {$$ = getRoot();}
+generic_params: '(' typevar_list_comma ')' {$$ = getRoot();}
               ;
 
 
@@ -629,11 +627,11 @@ array: '[' expr_list ']' {$$ = mkArrayNode(@$, $2);}
      ;
 
 
-unary_op: '@' expr                    {$$ = mkUnOpNode(@$, '@', $2);}
-        | '&' expr                    {$$ = mkUnOpNode(@$, '&', $2);}
-        | New expr                    {$$ = mkUnOpNode(@$, Tok_New, $2);}
-        | Not expr                    {$$ = mkUnOpNode(@$, Tok_Not, $2);}
-        | type_expr expr  %prec TYPE  {$$ = mkTypeCastNode(@$, $1, $2);}
+unary_op: '@' expr                          {$$ = mkUnOpNode(@$, '@', $2);}
+        | '&' expr                          {$$ = mkUnOpNode(@$, '&', $2);}
+        | New expr                          {$$ = mkUnOpNode(@$, Tok_New, $2);}
+        | Not expr                          {$$ = mkUnOpNode(@$, Tok_Not, $2);}
+        | type_no_generic expr  %prec TYPE  {$$ = mkTypeCastNode(@$, $1, $2);}
         ;
 
 preproc: '!' '[' expr ']'  {$$ = mkPreProcNode(@$, $3);}
@@ -684,7 +682,7 @@ expr_no_decl: expr_no_decl '+' maybe_newline expr_no_decl              {$$ = mkB
     | expr_no_decl '%' maybe_newline expr_no_decl                      {$$ = mkBinOpNode(@$, '%', $1, $4);}
     | expr_no_decl '<' maybe_newline expr_no_decl                      {$$ = mkBinOpNode(@$, '<', $1, $4);}
     | expr_no_decl '>' maybe_newline expr_no_decl                      {$$ = mkBinOpNode(@$, '>', $1, $4);}
-    | type_expr '.' maybe_newline var                                  {$$ = mkBinOpNode(@$, '.', $1, $4);}
+    | type '.' maybe_newline var                                       {$$ = mkBinOpNode(@$, '.', $1, $4);}
     | expr_no_decl '.' maybe_newline var                               {$$ = mkBinOpNode(@$, '.', $1, $4);}
     | expr_no_decl ';' maybe_newline expr_no_decl                      {$$ = mkSeqNode(@$, $1, $4);}
     | expr_no_decl '#' maybe_newline expr_no_decl                      {$$ = mkBinOpNode(@$, '#', $1, $4);}
@@ -736,7 +734,7 @@ expr: expr '+' maybe_newline expr                {$$ = mkBinOpNode(@$, '+', $1, 
     | expr '%' maybe_newline expr                {$$ = mkBinOpNode(@$, '%', $1, $4);}
     | expr '<' maybe_newline expr                {$$ = mkBinOpNode(@$, '<', $1, $4);}
     | expr '>' maybe_newline expr                {$$ = mkBinOpNode(@$, '>', $1, $4);}
-    | type_expr '.' maybe_newline var            {$$ = mkBinOpNode(@$, '.', $1, $4);}
+    | type '.' maybe_newline var                 {$$ = mkBinOpNode(@$, '.', $1, $4);}
     | expr '.' maybe_newline var                 {$$ = mkBinOpNode(@$, '.', $1, $4);}
     | expr ';' maybe_newline expr                {$$ = mkSeqNode(@$, $1, $4);}
     | expr '#' maybe_newline expr                {$$ = mkBinOpNode(@$, '#', $1, $4);}
