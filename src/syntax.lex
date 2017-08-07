@@ -11,6 +11,8 @@
 %}
 
 %x UNINDENT
+%x COMMENT
+%x ML_COMMENT
 
 %{
 
@@ -21,8 +23,9 @@
 #define YY_INPUT(buf,result,max_size) \
 {                                     \
     char c;                           \
-    (*lexerCtxt->is) >> c;            \
+    lexerCtxt->is->get(c);            \
     if(lexerCtxt->is->eof()){         \
+        puts("found null char");      \
         result = YY_NULL;             \
     }else{                            \
         buf[0] = c;                   \
@@ -38,9 +41,6 @@ LexerCtxt *lexerCtxt;
 
 bool ante::colored_output = true;
 
-std::stack<int> scopes;
-
-void flex_init();
 void flex_error(const char *msg, yy::parser::location_type* loc);
         
 map<int, const char*> tokDict = {
@@ -139,19 +139,17 @@ map<int, const char*> tokDict = {
 //                       yycolumn += yyleng;
 %}
 
-typevar '[a-z]\w*
+ident [a-z][A-Za-z_0-9]*
 
-usertype [A-Z]\w*
+typevar '{ident}
 
-ident [a-z]\w*
+usertype [A-Z][A-Za-z0-9]*
 
 strlit \".*\"
 
-intlit [1-9][0-9]*
+intlit [0-9]+
 
-fltlit {intlit}.[0-9]+
-
-operator [-+*%/#@&=<>|!:]
+operator [-`~!@#$%^&*()+=\{\}\[\]\\|:;/?.,<>]
 
 %%
 
@@ -159,134 +157,170 @@ operator [-+*%/#@&=<>|!:]
 //Rules
 %}
 
-i8    {return(Tok_I8);}
-i16   {return(Tok_I16);}
-i32   {return(Tok_I32);}
-i64   {return(Tok_I64);}
-isz   {return(Tok_Isz);}
-u8    {return(Tok_U8);}
-u16   {return(Tok_U16);}
-u32   {return(Tok_U32);}
-u64   {return(Tok_U64);}
-usz   {return(Tok_Usz);}
-c8    {return(Tok_C8);}
-f16   {return(Tok_F16);}
-f32   {return(Tok_F32);}
-f64   {return(Tok_F64);}
-bool  {return(Tok_Bool);}
-void  {return(Tok_Void);}
-
-{usertype} {return(Tok_UserType);}
-{typevar}  {return(Tok_TypeVar);}
+i8    {return Tok_I8;}
+i16   {return Tok_I16;}
+i32   {return Tok_I32;}
+i64   {return Tok_I64;}
+isz   {return Tok_Isz;}
+u8    {return Tok_U8;}
+u16   {return Tok_U16;}
+u32   {return Tok_U32;}
+u64   {return Tok_U64;}
+usz   {return Tok_Usz;}
+c8    {return Tok_C8;}
+f16   {return Tok_F16;}
+f32   {return Tok_F32;}
+f64   {return Tok_F64;}
+bool  {return Tok_Bool;}
+void  {return Tok_Void;}
 
 
-{operator}  {return(yytext[0]);}
-"=="        {return(Tok_Eq);}
-"!="        {return(Tok_NotEq);}
-"+="        {return(Tok_AddEq);}
-"-="        {return(Tok_SubEq);}
-"*="        {return(Tok_MulEq);}
-"/="        {return(Tok_DivEq);}
-">="        {return(Tok_GrtrEq);}
-"<="        {return(Tok_LesrEq);}
-".."        {return(Tok_Range);}
-"->"        {return(Tok_RArrow);}
-"<|"        {return(Tok_ApplyL);}
-"|>"        {return(Tok_ApplyR);}
-"++"        {return(Tok_Append);}
+"/*"       {BEGIN(ML_COMMENT);}
+"//"       {BEGIN(COMMENT);}
 
-or        {return(Tok_Or);}
-and       {return(Tok_And);}
-new       {return(Tok_New);}
-not       {return(Tok_Not);}
-true      {return(Tok_True);}
-false     {return(Tok_False);}
-return    {return(Tok_Return);}
-if        {return(Tok_If);}
-then      {return(Tok_Then);}
-elif      {return(Tok_Elif);}
-else      {return(Tok_Else);}
-for       {return(Tok_For);}
-while     {return(Tok_While);}
-do        {return(Tok_Do);}
-in        {return(Tok_In);}
-continue  {return(Tok_Continue);}
-break     {return(Tok_Break);}
-import    {return(Tok_Import);}
-let       {return(Tok_Let);}
-var       {return(Tok_Var);}
-match     {return(Tok_Match);}
-with      {return(Tok_With);}
-type      {return(Tok_Type);}
-trait     {return(Tok_Trait);}
-fun       {return(Tok_Fun);}
-ext       {return(Tok_Ext);}
-pub       {return(Tok_Pub);}
-pri       {return(Tok_Pri);}
-pro       {return(Tok_Pro);}
-raw       {return(Tok_Raw);}
-const     {return(Tok_Const);}
-noinit    {return(Tok_Noinit);}
-mut       {return(Tok_Mut);}
-global    {return(Tok_Global);}
+<COMMENT>\n {yyless(0); BEGIN(INITIAL);}
+<COMMENT>.  {}
 
+<ML_COMMENT>"*/"  {BEGIN(INITIAL);}
+<ML_COMMENT>\n    {}
+<ML_COMMENT>.     {}
 
-{intlit}   {return(Tok_IntLit);}
-{fltlit}   {return(Tok_FltLit);}
+{operator}  {return yytext[0];}
+"=="        {return Tok_Eq;}
+"!="        {return Tok_NotEq;}
+"+="        {return Tok_AddEq;}
+"-="        {return Tok_SubEq;}
+"*="        {return Tok_MulEq;}
+"/="        {return Tok_DivEq;}
+">="        {return Tok_GrtrEq;}
+"<="        {return Tok_LesrEq;}
+".."        {return Tok_Range;}
+"->"        {return Tok_RArrow;}
+"<|"        {return Tok_ApplyL;}
+"|>"        {return Tok_ApplyR;}
+"++"        {return Tok_Append;}
 
-{strlit}   {return(Tok_StrLit);}
-
-'.'        {return(Tok_CharLit);}
-'\\a'      {return(Tok_CharLit);}
-'\\b'      {return(Tok_CharLit);}
-'\\f'      {return(Tok_CharLit);}
-'\\n'      {return(Tok_CharLit);}
-'\\r'      {return(Tok_CharLit);}
-'\\t'      {return(Tok_CharLit);}
-'\\v'      {return(Tok_CharLit);}
-'\\0'      {return(Tok_CharLit);}
-'\\[0-9]+' {return(Tok_CharLit);}
+or        {return Tok_Or;}
+and       {return Tok_And;}
+new       {return Tok_New;}
+not       {return Tok_Not;}
+true      {return Tok_True;}
+false     {return Tok_False;}
+return    {return Tok_Return;}
+if        {return Tok_If;}
+then      {return Tok_Then;}
+elif      {return Tok_Elif;}
+else      {return Tok_Else;}
+for       {return Tok_For;}
+while     {return Tok_While;}
+do        {return Tok_Do;}
+in        {return Tok_In;}
+continue  {return Tok_Continue;}
+break     {return Tok_Break;}
+import    {return Tok_Import;}
+let       {return Tok_Let;}
+var       {return Tok_Var;}
+match     {return Tok_Match;}
+with      {return Tok_With;}
+type      {return Tok_Type;}
+trait     {return Tok_Trait;}
+fun       {return Tok_Fun;}
+ext       {return Tok_Ext;}
+pub       {return Tok_Pub;}
+pri       {return Tok_Pri;}
+pro       {return Tok_Pro;}
+raw       {return Tok_Raw;}
+const     {return Tok_Const;}
+noinit    {return Tok_Noinit;}
+mut       {return Tok_Mut;}
+global    {return Tok_Global;}
 
 
-{ident}   {return(Tok_Ident);}
+{intlit}   {return Tok_IntLit;}
 
-^\ *  {
-        if(yyleng == scopes.top()){
-            return(Tok_Newline);
-        }
+{intlit}\.{intlit}   {return Tok_FltLit;}
 
-        if(abs((long)yyleng - (long)scopes.top()) < 2){
-            YY_FATAL_ERROR("Changes in significant whitespace cannot be less than 2 spaces in size");
-        }
-        
-        if(yyleng > scopes.top()){
-            scopes.push(yyleng);
-            return(Tok_Indent);
-        }else{
-            scopes.pop();
-            ctxt->ws_size = yyleng;
-            BEGIN(UNINDENT);
-            yymore();
-            return(Tok_Unindent);
-        }
-      }
+{strlit}   {return Tok_StrLit;}
+
+'.'        {return Tok_CharLit;}
+'\\a'      {return Tok_CharLit;}
+'\\b'      {return Tok_CharLit;}
+'\\f'      {return Tok_CharLit;}
+'\\n'      {return Tok_CharLit;}
+'\\r'      {return Tok_CharLit;}
+'\\t'      {return Tok_CharLit;}
+'\\v'      {return Tok_CharLit;}
+'\\0'      {return Tok_CharLit;}
+'\\[0-9]+' {return Tok_CharLit;}
+
+{ident}   {return Tok_Ident;}
+{usertype} {return Tok_UserType;}
+{typevar}  {return Tok_TypeVar;}
+
+\n[ ]*"//"  {BEGIN(COMMENT);}
+\n[ ]*"/*"  {BEGIN(ML_COMMENT);}
+\n[ ]*$     {}
+
+\n[ ]*([A-Za-z_]|{operator})    {
+                                    yyless(yyleng-1);
+                                    yyleng -= 1;
+                                    if(yyleng == lexerCtxt->scopes.top()){
+                                        return Tok_Newline;
+                                    }
+
+                                    long dif = abs((long)yyleng - (long)lexerCtxt->scopes.top());
+                                    if(dif < 2){
+                                        YY_FATAL_ERROR("Changes in significant whitespace cannot be less than 2 spaces in size");
+                                    }
+                                    
+                                    if(yyleng > lexerCtxt->scopes.top()){
+                                        lexerCtxt->scopes.push(yyleng);
+                                        return Tok_Indent;
+                                    }else{
+                                        lexerCtxt->scopes.pop();
+                                        lexerCtxt->ws_size = yyleng;
+                                        BEGIN(UNINDENT);
+                                        return Tok_Unindent;
+                                    }
+                                }
+
+[ ]* {}
+
+<<EOF>>  {
+            if(0 < lexerCtxt->scopes.top()){
+                lexerCtxt->scopes.pop();
+                lexerCtxt->ws_size = 0;
+                BEGIN(UNINDENT);
+                puts("  Returning unindent");
+                return Tok_Unindent;
+            }else{
+                return 0;
+            }
+         }
+
+.    {
+        string errstr = "Unrecognized character: '";
+        errstr += yytext[0];
+        errstr += "', with ascii value " + to_string((int)yytext[0]);
+        YY_FATAL_ERROR(errstr.c_str());
+     }
 
 <UNINDENT>.     {
-                    if(ctxt->ws_size == scopes.top()){
+                    if(lexerCtxt->ws_size == lexerCtxt->scopes.top()){
+                        yyless(0);
                         BEGIN(INITIAL);
                     }else{
-                        scopes.pop();
+                        lexerCtxt->scopes.pop();
                         yyless(0);
-                        return(Tok_Unindent);
+                        return Tok_Unindent;
                     }
                 }
-
-\n    {}
 
 %%
 //User code
 
 void ante::LexerCtxt::init_scanner(){
+    lexerCtxt = this;
     //yylex_init(is);
     //yyset_extra(this, scanner);
 }
@@ -295,15 +329,12 @@ void ante::LexerCtxt::destroy_scanner(){
     //yylex_destroy(scanner);
 }
 
-void flex_init(){
-    while(!scopes.empty())
-        scopes.pop();
-    scopes.push(0);
-}
-
 void flex_error(const char *msg, yy::parser::location_type* loc){
     error(msg, *loc);
     exit(EXIT_FAILURE);//lexing errors are always fatal
+    //silence yyunput unused warning
+    yyunput(0,0);
+    yyinput();
 }
 
 namespace ante {

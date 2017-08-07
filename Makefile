@@ -47,7 +47,7 @@ bootante: obj obj/parser.o obj/lexer.o $(OBJFILES) $(ANOBJFILES)
 	@echo Bootstrapping f16.ao...
 	@$(CXX) -DF16_BOOT $(CPPFLAGS) -MMD -MP -Iinclude -c src/operator.cpp -o obj/operator.o
 	@$(CXX) -DAN_LIB_DIR="\"stdlib/\"" -DF16_BOOT $(CPPFLAGS) -MMD -MP -Iinclude -c src/compiler.cpp -o obj/compiler.o
-	@$(CXX) obj/parser.o $(OBJFILES) $(LLVMFLAGS) -o bootante
+	@$(CXX) obj/parser.o obj/lexer.o $(OBJFILES) $(LLVMFLAGS) -o bootante
 	@./bootante -lib -c src/f16.an -o obj/f16.ao
 	@rm obj/operator.o obj/compiler.o
 	@$(MAKE) obj/operator.o obj/compiler.o
@@ -97,6 +97,7 @@ obj/parser.o: src/syntax.y Makefile
 obj/lexer.o: src/syntax.lex Makefile
 	@echo Generating lexer...
 	@$(LEX) $(LEXFLAGS) src/syntax.lex
+	@-rm lex.yy.c
 	@$(CXX) $(CPPFLAGS) -MMD -MP -Iinclude -c $(LEXERSRC) -o $@
 
 test:
@@ -113,4 +114,4 @@ test:
 
 #remove all intermediate files
 clean:
-	-@$(RM) obj/*.o obj/*.d include/*.hh include/yyparser.h src/parser.cpp
+	-@$(RM) obj/*.o obj/*.ao obj/*.d include/*.hh include/yyparser.h src/parser.cpp
