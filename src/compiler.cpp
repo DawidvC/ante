@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <sstream>
 
 #include "parser.h"
 #include "compiler.h"
@@ -195,6 +196,7 @@ void scanImports(Compiler *c, RootNode *r){
     }
 }
 
+
 /**
  * @brief Compiles a Str literal that contains 1+ sites of string interpolation.
  * Concatenates
@@ -229,8 +231,10 @@ TypedValue* compStrInterpolation(Compiler *c, StrLitNode *sln, int pos){
     //now that the string is separated, begin interpolation preparation
     
     //lex and parse
-    setLexer(new Lexer(sln->loc.begin.filename, m, sln->loc.begin.line-1, sln->loc.begin.column + pos));
-    yy::parser p{};
+    //setLexer(new Lexer(sln->loc.begin.filename, m, sln->loc.begin.line-1, sln->loc.begin.column + pos));
+    auto *iss = new stringstream(m);
+    auto *lctxt = new LexerCtxt(iss);
+    yy::parser p{lctxt};
     int flag = p.parse();
     if(flag != PE_OK){ //parsing error, cannot procede
         fputs("Syntax error in string interpolation, aborting.\n", stderr);
@@ -1686,8 +1690,9 @@ void Compiler::eval(){
     getline(cin, cmd);
     while(cmd != "exit"){
         //lex and parse the new string
-        setLexer(new Lexer(nullptr, cmd, /*line*/1, /*col*/1));
-        yy::parser p{};
+        //setLexer(new Lexer(nullptr, cmd, /*line*/1, /*col*/1));
+        auto *lctxt = new LexerCtxt(&cin);
+        yy::parser p{lctxt};
         int flag = p.parse();
         if(flag == PE_OK){
             RootNode *expr = parser::getRootNode();
@@ -1918,7 +1923,7 @@ void Compiler::emitIR(){
 string typeNodeToStrWithModifiers(TypeNode *tn){
     string ret = "";
     for(int m : tn->modifiers){
-        ret += Lexer::getTokStr(m) + " ";
+        ret += lexer::getTokStr(m) + " ";
     }
     return ret + typeNodeToStr(tn);
 }
@@ -2104,16 +2109,18 @@ Compiler::Compiler(const char *_fileName, bool lib, shared_ptr<LLVMContext> llvm
     //The lexer stores the fileName in the loc field of all Nodes. The fileName is copied
     //to let Node's outlive the Compiler they were made in, ensuring they work with imports.
     if(_fileName){
-        string* fileName_cpy = new string(fileName);
-        setLexer(new Lexer(fileName_cpy));
-        yy::parser p{};
+        //string* fileName_cpy = new string(fileName);
+        //setLexer(new Lexer(fileName_cpy));
+        auto *ifs = new ifstream(fileName);
+        auto *lctxt = new LexerCtxt(ifs);
+        yy::parser p{lctxt};
         int flag = p.parse();
         if(flag != PE_OK){ //parsing error, cannot procede
             //print out remaining errors
-            int tok;
+            //int tok;
             yy::location loc;
-            while((tok = yylexer->next(&loc)) != Tok_Newline && tok != 0);
-            while(p.parse() != PE_OK && yylexer->peek() != 0);
+            //while((tok = yylexer->next(&loc)) != Tok_Newline && tok != 0);
+            //while(p.parse() != PE_OK && yylexer->peek() != 0);
 
             fputs("Syntax error, aborting.\n", stderr);
             exit(flag);
@@ -2245,10 +2252,10 @@ void Compiler::processArgs(CompilerArgs *args){
 
 Compiler::~Compiler(){
     exitScope();
-    if(yylexer){
-        delete yylexer;
-        yylexer = 0;
-    }
+    //if(yylexer){
+    //    delete yylexer;
+    //    yylexer = 0;
+    //}
 
     if(compCtxt)
         compCtxt->callStack.pop_back();

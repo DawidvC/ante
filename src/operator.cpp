@@ -1502,7 +1502,7 @@ TypedValue* handlePrimitiveNumericOp(BinOpNode *bop, Compiler *c, TypedValue *lh
                     else
                         return new TypedValue(c->builder.CreateICmpSGE(lhs->val, rhs->val), mkAnonTypeNode(TT_Bool));
         default:
-            return c->compErr("Operator " + Lexer::getTokStr(bop->op) + " is not overloaded for types "
+            return c->compErr("Operator " + lexer::getTokStr(bop->op) + " is not overloaded for types "
                    + typeNodeToColoredStr(lhs->type) + " and " + typeNodeToColoredStr(rhs->type), bop->loc);
     }
 }
@@ -1520,7 +1520,7 @@ TypedValue* typeCheckWithImplicitCasts(Compiler *c, TypedValue *arg, TypeNode *t
 
 
 TypedValue* checkForOperatorOverload(Compiler *c, TypedValue *lhs, int op, TypedValue *rhs){
-    string basefn = Lexer::getTokStr(op);
+    string basefn = lexer::getTokStr(op);
     string mangledfn = mangle(basefn, lhs->type.get(), rhs->type.get());
 
     //now look for the function
@@ -1597,7 +1597,7 @@ TypedValue* BinOpNode::compile(Compiler *c){
         }
     }
 
-    return c->compErr("Operator " + Lexer::getTokStr(op) + " is not overloaded for types "
+    return c->compErr("Operator " + lexer::getTokStr(op) + " is not overloaded for types "
             + typeNodeToColoredStr(lhs->type) + " and " + typeNodeToColoredStr(rhs->type), loc);
 }
 
@@ -1651,7 +1651,7 @@ TypedValue* UnOpNode::compile(Compiler *c){
             }
     }
     
-    return c->compErr("Unknown unary operator " + Lexer::getTokStr(op), loc);
+    return c->compErr("Unknown unary operator " + lexer::getTokStr(op), loc);
 }
 
 } // end of namespace ante

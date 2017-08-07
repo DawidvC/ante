@@ -11,6 +11,7 @@ syntax.tab.c
 .clang_complete
 src/parser.output
 src/parser.cpp
+src/lexer.cpp
 include/*.hh
 include/yyparser.h
 /src/location.hh

@@ -98,7 +98,7 @@ void TupleNode::print(){
 }
 
 void ModNode::print(){
-    Lexer::printTok(mod);
+    lexer::printTok(mod);
 }
 
 void PreProcNode::print(){
@@ -131,7 +131,7 @@ void TypeCastNode::print(){
 
 void UnOpNode::print(){
     putchar('(');
-    Lexer::printTok(op);
+    lexer::printTok(op);
     putchar(' ');
     rval->print();
     putchar(')');
@@ -153,7 +153,7 @@ void BinOpNode::print(){
         putchar('(');
         lval->print();
         putchar(' ');
-        Lexer::printTok(op);
+        lexer::printTok(op);
         putchar(' ');
         rval->print();
         putchar(')');

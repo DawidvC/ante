@@ -1,6 +1,7 @@
 %{
 #include <stdlib.h>
 #include <stdio.h>
+#include <cstring>
 #include <tokens.h>
 #include <ptree.h>
 
@@ -12,12 +13,15 @@
 /* Setting verbose for a c++ parser requires %error-verbose, set in the next section */
 #define YYERROR_VERBOSE 1
 
+#include "lexer.h"
 #include "yyparser.h"
-#include <cstring>
+#include "error.h"
 using namespace ante;
 
-/* Defined in lexer.cpp */
-extern int yylex(yy::parser::semantic_type*, yy::location*);
+extern char *yytext;
+
+//extern int yylex();
+extern int yylex(YYSTYPE*, LOC_TY*, ante::LexerCtxt*);
 
 namespace ante {
     extern string typeNodeToStr(const TypeNode*);
@@ -40,6 +44,9 @@ void yyerror(const char *msg);
 
 %locations
 %error-verbose
+%parse-param { ante::LexerCtxt* scanner }
+%lex-param   { void* scanner }
+
 
 %token Ident UserType TypeVar
 
@@ -180,25 +187,25 @@ maybe_newline: Newline  %prec Newline
 import_expr: Import expr {$$ = mkImportNode(@$, $2);}
 
 
-ident: Ident {$$ = (Node*)lextxt;}
+ident: Ident {$$ = (Node*)yytext;}
      ;
 
-usertype: UserType {$$ = (Node*)lextxt;}
+usertype: UserType {$$ = (Node*)yytext;}
         ;
 
-typevar: TypeVar {$$ = (Node*)lextxt;}
+typevar: TypeVar {$$ = (Node*)yytext;}
        ;
 
-intlit: IntLit {$$ = mkIntLitNode(@$, lextxt);}
+intlit: IntLit {$$ = mkIntLitNode(@$, yytext);}
       ;
 
-fltlit: FltLit {$$ = mkFltLitNode(@$, lextxt);}
+fltlit: FltLit {$$ = mkFltLitNode(@$, yytext);}
       ;
 
-strlit: StrLit {$$ = mkStrLitNode(@$, lextxt);}
+strlit: StrLit {$$ = mkStrLitNode(@$, yytext);}
       ;
 
-charlit: CharLit {$$ = mkCharLitNode(@$, lextxt);}
+charlit: CharLit {$$ = mkCharLitNode(@$, yytext);}
       ;
 
 lit_type: I8                  {$$ = mkTypeNode(@$, TT_I8,  (char*)"");}

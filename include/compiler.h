@@ -14,6 +14,7 @@
 #include "parser.h"
 #include "args.h"
 #include "lazystr.h"
+#include "error.h"
 
 using namespace llvm;
 using namespace std;

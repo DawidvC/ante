@@ -13,6 +13,9 @@ LIBFILES := $(shell find stdlib -type f -name "*.an")
 
 CPPFLAGS  := -g -std=c++11 `$(LLVMCFG) --cflags --cppflags` -O0 $(WARNINGS)
 
+LEXERSRC := src/lexer.cpp
+LEXFLAGS := -o$(LEXERSRC)
+
 PARSERSRC := src/parser.cpp
 YACCFLAGS := -Lc++ -o$(PARSERSRC) --defines=include/yyparser.h
 
@@ -26,20 +29,21 @@ ANOBJFILES := $(patsubst src/%.an,obj/%.ao,$(ANSRCFILES))
 
 TESTFILES := $(shell find 'tests/' -maxdepth 1 -type f -name "*.an")
 
-#If src/parser.cpp is still present, remove it from objfiles so as to not double-compile it
+#If parser or lexer is still present, remove it from objfiles so as to not double-compile it
 OBJFILES := $(patsubst obj/parser.o,,$(OBJFILES))
+OBJFILES := $(patsubst obj/lexer.o,,$(OBJFILES))
 
 DEPFILES := $(OBJFILES:.o=.d)
 
 .PHONY: new clean stdlib
 .DEFAULT: ante
 
-ante: obj obj/parser.o $(OBJFILES) $(ANOBJFILES)
+ante: obj obj/parser.o obj/lexer.o $(OBJFILES) $(ANOBJFILES)
 	@if [ ! -e obj/f16.ao ]; then $(MAKE) bootante; fi
 	@echo Linking...
-	@$(CXX) obj/parser.o $(OBJFILES) $(ANOBJFILES) $(LLVMFLAGS) -o ante
+	@$(CXX) obj/parser.o obj/lexer.o $(OBJFILES) $(ANOBJFILES) $(LLVMFLAGS) -o ante
 
-bootante: obj obj/parser.o $(OBJFILES) $(ANOBJFILES)
+bootante: obj obj/parser.o obj/lexer.o $(OBJFILES) $(ANOBJFILES)
 	@echo Bootstrapping f16.ao...
 	@$(CXX) -DF16_BOOT $(CPPFLAGS) -MMD -MP -Iinclude -c src/operator.cpp -o obj/operator.o
 	@$(CXX) -DAN_LIB_DIR="\"stdlib/\"" -DF16_BOOT $(CPPFLAGS) -MMD -MP -Iinclude -c src/compiler.cpp -o obj/compiler.o
@@ -58,8 +62,8 @@ stdlib: $(LIBFILES) Makefile
 	    cp stdlib/*.an $(LIBDIR);                                                    \
 	 else                                                                            \
 	    printf '\033[;31mMust run with root permissions to export stdlib!\033[;m\n'; \
-		echo 'To export stdlib run:';                                                \
-		echo -e '\n$$ sudo make stdlib\n';                                           \
+		echo 'To export stdlib manually run:';                                       \
+		echo '\n$$ sudo mk -p $(LIBDIR); sudo cp stdlib/*.an $(LIBDIR)';             \
 		exit 1;                                                                      \
 	 fi
 
@@ -90,6 +94,10 @@ obj/parser.o: src/syntax.y Makefile
 	@-mv src/*.hh include
 	@$(CXX) $(CPPFLAGS) -MMD -MP -Iinclude -c $(PARSERSRC) -o $@
 
+obj/lexer.o: src/syntax.lex Makefile
+	@echo Generating lexer...
+	@$(LEX) $(LEXFLAGS) src/syntax.lex
+	@$(CXX) $(CPPFLAGS) -MMD -MP -Iinclude -c $(LEXERSRC) -o $@
 
 test:
 	@ERRC=0;                                                                  \

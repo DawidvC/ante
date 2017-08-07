@@ -19,19 +19,14 @@ using namespace ante;
  */
 void parseFile(string &fileName){
     //parse and print parse tree
-    setLexer(new Lexer(&fileName));
-    yy::parser p{};
+    auto *ifs = new ifstream(fileName);
+    auto *lctxt = new LexerCtxt(ifs);
+    yy::parser p{lctxt};
     int flag = p.parse();
     if(flag == PE_OK){
         Node* root = parser::getRootNode();
         parser::printBlock(root);
         delete root;
-    }else{
-        //print out remaining errors
-        int tok;
-        yy::location loc;
-        while((tok = yylexer->next(&loc)) != Tok_Newline && tok != 0);
-        while(p.parse() != PE_OK && yylexer->peek() != 0);
     }
 }
 
@@ -77,9 +72,6 @@ int main(int argc, const char **argv){
     if(args->hasArg(Args::Eval) or (args->args.empty() and args->inputFiles.empty()))
         Compiler(0).eval();
 
-    if(yylexer)
-        delete yylexer;
     delete args;
-
     return 0;
 }
