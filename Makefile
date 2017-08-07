@@ -63,7 +63,7 @@ stdlib: $(LIBFILES) Makefile
 	 else                                                                            \
 	    printf '\033[;31mMust run with root permissions to export stdlib!\033[;m\n'; \
 		echo 'To export stdlib manually run:';                                       \
-		echo '\n$$ sudo mk -p $(LIBDIR); sudo cp stdlib/*.an $(LIBDIR)';             \
+		echo -e '\n$$ sudo mk -p $(LIBDIR); sudo cp stdlib/*.an $(LIBDIR)\n';        \
 		exit 1;                                                                      \
 	 fi
 
