@@ -13,6 +13,8 @@
 %x UNINDENT
 %x COMMENT
 %x ML_COMMENT
+%x STRLIT
+%x CHARLIT
 
 %{
 
@@ -25,7 +27,6 @@
     char c;                           \
     lexerCtxt->is->get(c);            \
     if(lexerCtxt->is->eof()){         \
-        puts("found null char");      \
         result = YY_NULL;             \
     }else{                            \
         buf[0] = c;                   \
@@ -38,11 +39,12 @@
 using namespace ante;
 
 LexerCtxt *lexerCtxt;
+char *lextext;
 
 bool ante::colored_output = true;
 
 void flex_error(const char *msg, yy::parser::location_type* loc);
-        
+
 map<int, const char*> tokDict = {
     {Tok_Ident, "Identifier"},
     {Tok_UserType, "UserType"},
@@ -139,15 +141,13 @@ map<int, const char*> tokDict = {
 //                       yycolumn += yyleng;
 %}
 
-ident [a-z][A-Za-z_0-9]*
+ident [a-z_][A-Za-z_0-9]*
 
 typevar '{ident}
 
 usertype [A-Z][A-Za-z0-9]*
 
-strlit \".*\"
-
-intlit [0-9]+
+intlit [0-9_]+
 
 operator [-`~!@#$%^&*()+=\{\}\[\]\\|:;/?.,<>]
 
@@ -236,26 +236,48 @@ mut       {return Tok_Mut;}
 global    {return Tok_Global;}
 
 
-{intlit}   {return Tok_IntLit;}
+{intlit}   {lextext = strdup(yytext); return Tok_IntLit;}
 
-{intlit}\.{intlit}   {return Tok_FltLit;}
+{intlit}\.{intlit}   {lextext = strdup(yytext); return Tok_FltLit;}
 
-{strlit}   {return Tok_StrLit;}
+\"         {BEGIN(STRLIT);}
 
-'.'        {return Tok_CharLit;}
-'\\a'      {return Tok_CharLit;}
-'\\b'      {return Tok_CharLit;}
-'\\f'      {return Tok_CharLit;}
-'\\n'      {return Tok_CharLit;}
-'\\r'      {return Tok_CharLit;}
-'\\t'      {return Tok_CharLit;}
-'\\v'      {return Tok_CharLit;}
-'\\0'      {return Tok_CharLit;}
-'\\[0-9]+' {return Tok_CharLit;}
+<STRLIT>\"        {yytext[yyleng-1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_StrLit;}
+<STRLIT>\\\"      {yymore(); yyleng -= 1; yytext[yyleng-1] = '"';  yytext[yyleng] = '\0';}
+<STRLIT>\\a       {yymore(); yyleng -= 1; yytext[yyleng-1] = '\a'; yytext[yyleng] = '\0';}
+<STRLIT>\\b       {yymore(); yyleng -= 1; yytext[yyleng-1] = '\b'; yytext[yyleng] = '\0';}
+<STRLIT>\\f       {yymore(); yyleng -= 1; yytext[yyleng-1] = '\f'; yytext[yyleng] = '\0';}
+<STRLIT>\\n       {yymore(); yyleng -= 1; yytext[yyleng-1] = '\n'; yytext[yyleng] = '\0';}
+<STRLIT>\\r       {yymore(); yyleng -= 1; yytext[yyleng-1] = '\r'; yytext[yyleng] = '\0';}
+<STRLIT>\\t       {yymore(); yyleng -= 1; yytext[yyleng-1] = '\t'; yytext[yyleng] = '\0';}
+<STRLIT>\\v       {yymore(); yyleng -= 1; yytext[yyleng-1] = '\v'; yytext[yyleng] = '\0';}
+<STRLIT>\\0       {yymore(); yyleng -= 1; yytext[yyleng-1] = '\0'; yytext[yyleng] = '\0';}
+<STRLIT>\\[0-9]+  {yymore(); yyleng -= 1; yytext[yyleng-1] = '\a'; yytext[yyleng] = '\0';}
+<STRLIT>\\\\      {yymore(); yyleng -= 1; yytext[yyleng-1] = '\\'; yytext[yyleng] = '\0';}
+<STRLIT>\\.       {YY_FATAL_ERROR("Unknown escape sequence");}
+<STRLIT>\n        {printf("Line %d:\n",yylineno); YY_FATAL_ERROR("Unterminated string");}
+<STRLIT>.         {yymore(); }
 
-{ident}   {return Tok_Ident;}
-{usertype} {return Tok_UserType;}
-{typevar}  {return Tok_TypeVar;}
+'   {BEGIN(CHARLIT);}
+
+<CHARLIT>\\''       {yytext[0] = '\''; yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>\\a'       {yytext[0] = '\a'; yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>\\b'       {yytext[0] = '\b'; yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>\\f'       {yytext[0] = '\f'; yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>\\n'       {yytext[0] = '\n'; yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>\\r'       {yytext[0] = '\r'; yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>\\t'       {yytext[0] = '\t'; yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>\\v'       {yytext[0] = '\v'; yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>\\0'       {yytext[0] = '\0'; yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>\\[0-9]+'  {yytext[0] = '\0'; yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>\\\\'      {yytext[0] = '\\'; yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>\n         {printf("Line %d:\n",yylineno); YY_FATAL_ERROR("Unterminated char literal");}
+<CHARLIT>.'         {yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>\\.'       {YY_FATAL_ERROR("Unknown escape sequence");}
+
+{ident}    {lextext = strdup(yytext); return Tok_Ident;}
+{usertype} {lextext = strdup(yytext); return Tok_UserType;}
+{typevar}  {lextext = strdup(yytext); return Tok_TypeVar;}
 
 \n[ ]*"//"  {BEGIN(COMMENT);}
 \n[ ]*"/*"  {BEGIN(ML_COMMENT);}
@@ -286,12 +308,13 @@ global    {return Tok_Global;}
 
 [ ]* {}
 
+\n   {}
+
 <<EOF>>  {
             if(0 < lexerCtxt->scopes.top()){
                 lexerCtxt->scopes.pop();
                 lexerCtxt->ws_size = 0;
                 BEGIN(UNINDENT);
-                puts("  Returning unindent");
                 return Tok_Unindent;
             }else{
                 return 0;
@@ -305,7 +328,7 @@ global    {return Tok_Global;}
         YY_FATAL_ERROR(errstr.c_str());
      }
 
-<UNINDENT>.     {
+<UNINDENT>.|\n  {
                     if(lexerCtxt->ws_size == lexerCtxt->scopes.top()){
                         yyless(0);
                         BEGIN(INITIAL);
@@ -340,7 +363,10 @@ void flex_error(const char *msg, yy::parser::location_type* loc){
 namespace ante {
     namespace lexer {
         void printTok(int t){
-            std::cout << getTokStr(t);
+            if(t < 258)
+                cout << (char)t;
+            else
+                std::cout << getTokStr(t);
         }
 
         std::string getTokStr(int t){

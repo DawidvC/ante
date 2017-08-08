@@ -18,7 +18,7 @@
 #include "error.h"
 using namespace ante;
 
-extern char *yytext;
+extern char *lextext;
 
 //extern int yylex();
 extern int yylex(YYSTYPE*, LOC_TY*, ante::LexerCtxt*);
@@ -187,25 +187,25 @@ maybe_newline: Newline  %prec Newline
 import_expr: Import expr {$$ = mkImportNode(@$, $2);}
 
 
-ident: Ident {$$ = (Node*)yytext;}
+ident: Ident {$$ = (Node*)lextext;}
      ;
 
-usertype: UserType {$$ = (Node*)yytext;}
+usertype: UserType {$$ = (Node*)lextext;}
         ;
 
-typevar: TypeVar {$$ = (Node*)yytext;}
+typevar: TypeVar {$$ = (Node*)lextext;}
        ;
 
-intlit: IntLit {$$ = mkIntLitNode(@$, yytext);}
+intlit: IntLit {$$ = mkIntLitNode(@$, lextext);}
       ;
 
-fltlit: FltLit {$$ = mkFltLitNode(@$, yytext);}
+fltlit: FltLit {$$ = mkFltLitNode(@$, lextext);}
       ;
 
-strlit: StrLit {$$ = mkStrLitNode(@$, yytext);}
+strlit: StrLit {$$ = mkStrLitNode(@$, lextext);}
       ;
 
-charlit: CharLit {$$ = mkCharLitNode(@$, yytext);}
+charlit: CharLit {$$ = mkCharLitNode(@$, lextext);}
       ;
 
 lit_type: I8                  {$$ = mkTypeNode(@$, TT_I8,  (char*)"");}

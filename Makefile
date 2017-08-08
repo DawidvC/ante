@@ -97,7 +97,7 @@ obj/parser.o: src/syntax.y Makefile
 obj/lexer.o: src/syntax.lex Makefile
 	@echo Generating lexer...
 	@$(LEX) $(LEXFLAGS) src/syntax.lex
-	@-rm lex.yy.c
+	@-rm -f lex.yy.c
 	@$(CXX) $(CPPFLAGS) -MMD -MP -Iinclude -c $(LEXERSRC) -o $@
 
 test:
