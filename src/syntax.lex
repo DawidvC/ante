@@ -22,6 +22,11 @@
 
 #define YY_USER_ACTION yylloc->begin.line = yylineno;
 
+//#define YY_USER_ACTION yylloc.first_line = yyloc.last_line = yylineno; \
+//                       yylloc.first_column = yycolumn; \
+//                       yylloc.last_column = yycolumn+yyleng-1; \
+//                       yycolumn += yyleng;
+
 #define YY_INPUT(buf,result,max_size) \
 {                                     \
     char c;                           \
@@ -40,10 +45,13 @@ using namespace ante;
 
 LexerCtxt *lexerCtxt;
 char *lextext;
+string lextext_str;
 
 bool ante::colored_output = true;
 
 void flex_error(const char *msg, yy::parser::location_type* loc);
+
+char* numdup(const char *str, size_t len);
 
 map<int, const char*> tokDict = {
     {Tok_Ident, "Identifier"},
@@ -134,11 +142,6 @@ map<int, const char*> tokDict = {
     {Tok_Indent, "Indent"},
     {Tok_Unindent, "Unindent"},
 };
-
-//#define YY_USER_ACTION yylloc.first_line = yyloc.last_line = yylineno; \
-//                       yylloc.first_column = yycolumn; \
-//                       yylloc.last_column = yycolumn+yyleng-1; \
-//                       yycolumn += yyleng;
 %}
 
 ident [a-z_][A-Za-z_0-9]*
@@ -236,48 +239,52 @@ mut       {return Tok_Mut;}
 global    {return Tok_Global;}
 
 
-{intlit}   {lextext = strdup(yytext); return Tok_IntLit;}
+{intlit}                           {lextext = numdup(yytext, yyleng); return Tok_IntLit;}
+{intlit}([ui](8|16|32|64|sz)?)?    {lextext = numdup(yytext, yyleng); return Tok_IntLit;}
 
-{intlit}\.{intlit}   {lextext = strdup(yytext); return Tok_FltLit;}
+{intlit}\.{intlit}(f(16|32|64))?   {lextext = numdup(yytext, yyleng); return Tok_FltLit;}
 
-\"         {BEGIN(STRLIT);}
+\"         {lextext_str = ""; BEGIN(STRLIT);}
 
-<STRLIT>\"        {yytext[yyleng-1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_StrLit;}
-<STRLIT>\\\"      {yymore(); yyleng -= 1; yytext[yyleng-1] = '"';  yytext[yyleng] = '\0';}
-<STRLIT>\\a       {yymore(); yyleng -= 1; yytext[yyleng-1] = '\a'; yytext[yyleng] = '\0';}
-<STRLIT>\\b       {yymore(); yyleng -= 1; yytext[yyleng-1] = '\b'; yytext[yyleng] = '\0';}
-<STRLIT>\\f       {yymore(); yyleng -= 1; yytext[yyleng-1] = '\f'; yytext[yyleng] = '\0';}
-<STRLIT>\\n       {yymore(); yyleng -= 1; yytext[yyleng-1] = '\n'; yytext[yyleng] = '\0';}
-<STRLIT>\\r       {yymore(); yyleng -= 1; yytext[yyleng-1] = '\r'; yytext[yyleng] = '\0';}
-<STRLIT>\\t       {yymore(); yyleng -= 1; yytext[yyleng-1] = '\t'; yytext[yyleng] = '\0';}
-<STRLIT>\\v       {yymore(); yyleng -= 1; yytext[yyleng-1] = '\v'; yytext[yyleng] = '\0';}
-<STRLIT>\\0       {yymore(); yyleng -= 1; yytext[yyleng-1] = '\0'; yytext[yyleng] = '\0';}
-<STRLIT>\\[0-9]+  {yymore(); yyleng -= 1; yytext[yyleng-1] = '\a'; yytext[yyleng] = '\0';}
-<STRLIT>\\\\      {yymore(); yyleng -= 1; yytext[yyleng-1] = '\\'; yytext[yyleng] = '\0';}
+<STRLIT>\"        {lextext = strdup(lextext_str.c_str()); BEGIN(INITIAL); return Tok_StrLit;}
+<STRLIT>\\\"      {lextext_str += '"'; }
+<STRLIT>\\a       {lextext_str += '\a';}
+<STRLIT>\\b       {lextext_str += '\b';}
+<STRLIT>\\f       {lextext_str += '\f';}
+<STRLIT>\\n       {lextext_str += '\n';}
+<STRLIT>\\r       {lextext_str += '\r';}
+<STRLIT>\\t       {lextext_str += '\t';}
+<STRLIT>\\v       {lextext_str += '\v';}
+<STRLIT>\\0       {lextext_str += '\0';}
+<STRLIT>\\[0-9]+  {lextext_str += '\a';}
+<STRLIT>\\\\      {lextext_str += '\\';}
 <STRLIT>\\.       {YY_FATAL_ERROR("Unknown escape sequence");}
 <STRLIT>\n        {printf("Line %d:\n",yylineno); YY_FATAL_ERROR("Unterminated string");}
-<STRLIT>.         {yymore(); }
+<STRLIT>.         {lextext_str += yytext[0];}
 
 '   {BEGIN(CHARLIT);}
 
-<CHARLIT>\\''       {yytext[0] = '\''; yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
-<CHARLIT>\\a'       {yytext[0] = '\a'; yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
-<CHARLIT>\\b'       {yytext[0] = '\b'; yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
-<CHARLIT>\\f'       {yytext[0] = '\f'; yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
-<CHARLIT>\\n'       {yytext[0] = '\n'; yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
-<CHARLIT>\\r'       {yytext[0] = '\r'; yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
-<CHARLIT>\\t'       {yytext[0] = '\t'; yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
-<CHARLIT>\\v'       {yytext[0] = '\v'; yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
-<CHARLIT>\\0'       {yytext[0] = '\0'; yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
-<CHARLIT>\\[0-9]+'  {yytext[0] = '\0'; yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
-<CHARLIT>\\\\'      {yytext[0] = '\\'; yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
-<CHARLIT>\n         {printf("Line %d:\n",yylineno); YY_FATAL_ERROR("Unterminated char literal");}
+<CHARLIT>\\''       {lextext = strdup("'");  BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>\\a'       {lextext = strdup("\a"); BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>\\b'       {lextext = strdup("\b"); BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>\\f'       {lextext = strdup("\f"); BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>\\n'       {lextext = strdup("\n"); BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>\\r'       {lextext = strdup("\r"); BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>\\t'       {lextext = strdup("\t"); BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>\\v'       {lextext = strdup("\v"); BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>\\0'       {lextext = strdup("\0"); BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>'          {lextext = strdup("\0"); BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>\\[0-9]+'  {lextext = strdup("\0"); BEGIN(INITIAL); return Tok_CharLit;}
+<CHARLIT>\\\\'      {lextext = strdup("\\"); BEGIN(INITIAL); return Tok_CharLit;}
 <CHARLIT>.'         {yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
 <CHARLIT>\\.'       {YY_FATAL_ERROR("Unknown escape sequence");}
+<CHARLIT>\n         {printf("Line %d:\n",yylineno); YY_FATAL_ERROR("Unterminated char literal");}
+
+<CHARLIT>{ident}    {lextext = strdup(yytext); BEGIN(INITIAL); return Tok_TypeVar;}
+<CHARLIT>{ident}'   {printf("Line %d:\n",yylineno); YY_FATAL_ERROR("Invalid char literal (too long)");}
 
 {ident}    {lextext = strdup(yytext); return Tok_Ident;}
 {usertype} {lextext = strdup(yytext); return Tok_UserType;}
-{typevar}  {lextext = strdup(yytext); return Tok_TypeVar;}
 
 \n[ ]*"//"  {BEGIN(COMMENT);}
 \n[ ]*"/*"  {BEGIN(ML_COMMENT);}
@@ -306,6 +313,19 @@ global    {return Tok_Global;}
                                     }
                                 }
 
+
+<UNINDENT>.|\n  {
+                    if(lexerCtxt->ws_size == lexerCtxt->scopes.top()){
+                        yyless(0);
+                        BEGIN(INITIAL);
+                        return Tok_Newline;
+                    }else{
+                        lexerCtxt->scopes.pop();
+                        yyless(0);
+                        return Tok_Unindent;
+                    }
+                }
+
 [ ]* {}
 
 \n   {}
@@ -328,16 +348,6 @@ global    {return Tok_Global;}
         YY_FATAL_ERROR(errstr.c_str());
      }
 
-<UNINDENT>.|\n  {
-                    if(lexerCtxt->ws_size == lexerCtxt->scopes.top()){
-                        yyless(0);
-                        BEGIN(INITIAL);
-                    }else{
-                        lexerCtxt->scopes.pop();
-                        yyless(0);
-                        return Tok_Unindent;
-                    }
-                }
 
 %%
 //User code
@@ -358,6 +368,19 @@ void flex_error(const char *msg, yy::parser::location_type* loc){
     //silence yyunput unused warning
     yyunput(0,0);
     yyinput();
+}
+
+//copy a numerical string and remove _ instances
+char* numdup(const char *str, size_t len){
+    char *buf = (char*)malloc(len+1);
+    size_t buf_idx = 0;
+    for(size_t i = 0; i < len; i++){
+        char c = str[i];
+        if(c != '_')
+            buf[buf_idx++] = c;
+    }
+    buf[buf_idx] = '\0';
+    return buf;
 }
 
 namespace ante {
