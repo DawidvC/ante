@@ -20,7 +20,7 @@ using namespace ante;
 void parseFile(string &fileName){
     //parse and print parse tree
     auto *ifs = new ifstream(fileName);
-    auto *lctxt = new LexerCtxt(ifs);
+    auto *lctxt = new LexerCtxt(ifs, &fileName);
     yy::parser p{lctxt};
     int flag = p.parse();
     if(flag == PE_OK){

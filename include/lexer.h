@@ -21,8 +21,9 @@ namespace ante {
         std::stack<int> scopes;
         int ws_size;
         istream *is;
+        string *filename;
 
-        LexerCtxt(istream *i) : ws_size(0), is(i){
+        LexerCtxt(istream *i, string *f) : ws_size(0), is(i), filename(f){
             init_scanner();
             scopes.push(0);
         }

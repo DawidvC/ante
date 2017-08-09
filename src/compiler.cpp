@@ -233,7 +233,7 @@ TypedValue* compStrInterpolation(Compiler *c, StrLitNode *sln, int pos){
     //lex and parse
     //setLexer(new Lexer(sln->loc.begin.filename, m, sln->loc.begin.line-1, sln->loc.begin.column + pos));
     auto *iss = new stringstream(m);
-    auto *lctxt = new LexerCtxt(iss);
+    auto *lctxt = new LexerCtxt(iss, sln->loc.begin.filename);
     yy::parser p{lctxt};
     int flag = p.parse();
     if(flag != PE_OK){ //parsing error, cannot procede
@@ -1691,7 +1691,7 @@ void Compiler::eval(){
     while(cmd != "exit"){
         //lex and parse the new string
         //setLexer(new Lexer(nullptr, cmd, /*line*/1, /*col*/1));
-        auto *lctxt = new LexerCtxt(&cin);
+        auto *lctxt = new LexerCtxt(&cin, new string("(stdin)"));
         yy::parser p{lctxt};
         int flag = p.parse();
         if(flag == PE_OK){
@@ -2109,10 +2109,10 @@ Compiler::Compiler(const char *_fileName, bool lib, shared_ptr<LLVMContext> llvm
     //The lexer stores the fileName in the loc field of all Nodes. The fileName is copied
     //to let Node's outlive the Compiler they were made in, ensuring they work with imports.
     if(_fileName){
-        //string* fileName_cpy = new string(fileName);
+        string* fileNameCpy = new string(fileName);
         //setLexer(new Lexer(fileName_cpy));
         auto *ifs = new ifstream(fileName);
-        auto *lctxt = new LexerCtxt(ifs);
+        auto *lctxt = new LexerCtxt(ifs, fileNameCpy);
         yy::parser p{lctxt};
         int flag = p.parse();
         if(flag != PE_OK){ //parsing error, cannot procede

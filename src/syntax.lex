@@ -20,7 +20,7 @@
 
 #define YY_DECL int yylex(YYSTYPE* yylval_param, yy::location* yylloc_param, ante::LexerCtxt* ctxt)
 
-#define YY_USER_ACTION yylloc->begin.line = yylineno;
+#define YY_USER_ACTION ante::updateLoc(yylloc);
 
 //#define YY_USER_ACTION yylloc.first_line = yyloc.last_line = yylineno; \
 //                       yylloc.first_column = yycolumn; \
@@ -43,15 +43,21 @@
 
 using namespace ante;
 
-LexerCtxt *lexerCtxt;
-char *lextext;
-string lextext_str;
+namespace ante {
+    LexerCtxt *lexerCtxt;
+    char *lextext;
+    string lextext_str;
 
-bool ante::colored_output = true;
+    size_t yycolumn = 1;
 
-void flex_error(const char *msg, yy::parser::location_type* loc);
+    bool colored_output = true;
 
-char* numdup(const char *str, size_t len);
+    void updateLoc(yy::parser::location_type* loc);
+
+    void flex_error(const char *msg, yy::parser::location_type* loc);
+
+    char* numdup(const char *str, size_t len);
+}
 
 map<int, const char*> tokDict = {
     {Tok_Ident, "Identifier"},
@@ -181,11 +187,11 @@ void  {return Tok_Void;}
 "/*"       {BEGIN(ML_COMMENT);}
 "//"       {BEGIN(COMMENT);}
 
-<COMMENT>\n {yyless(0); BEGIN(INITIAL);}
+<COMMENT>\n {yycolumn = 0; yyless(0); BEGIN(INITIAL);}
 <COMMENT>.  {}
 
 <ML_COMMENT>"*/"  {BEGIN(INITIAL);}
-<ML_COMMENT>\n    {}
+<ML_COMMENT>\n    {yycolumn = 0;}
 <ML_COMMENT>.     {}
 
 {operator}  {return yytext[0];}
@@ -259,7 +265,7 @@ global    {return Tok_Global;}
 <STRLIT>\\[0-9]+  {lextext_str += '\a';}
 <STRLIT>\\\\      {lextext_str += '\\';}
 <STRLIT>\\.       {YY_FATAL_ERROR("Unknown escape sequence");}
-<STRLIT>\n        {printf("Line %d:\n",yylineno); YY_FATAL_ERROR("Unterminated string");}
+<STRLIT>\n        {yycolumn = 0; printf("Line %d:\n",yylineno); YY_FATAL_ERROR("Unterminated string");}
 <STRLIT>.         {lextext_str += yytext[0];}
 
 '   {BEGIN(CHARLIT);}
@@ -278,7 +284,7 @@ global    {return Tok_Global;}
 <CHARLIT>\\\\'      {lextext = strdup("\\"); BEGIN(INITIAL); return Tok_CharLit;}
 <CHARLIT>.'         {yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
 <CHARLIT>\\.'       {YY_FATAL_ERROR("Unknown escape sequence");}
-<CHARLIT>\n         {printf("Line %d:\n",yylineno); YY_FATAL_ERROR("Unterminated char literal");}
+<CHARLIT>\n         {yycolumn = 0; printf("Line %d:\n",yylineno); YY_FATAL_ERROR("Unterminated char literal");}
 
 <CHARLIT>{ident}    {lextext = strdup(yytext); BEGIN(INITIAL); return Tok_TypeVar;}
 <CHARLIT>{ident}'   {printf("Line %d:\n",yylineno); YY_FATAL_ERROR("Invalid char literal (too long)");}
@@ -286,13 +292,14 @@ global    {return Tok_Global;}
 {ident}    {lextext = strdup(yytext); return Tok_Ident;}
 {usertype} {lextext = strdup(yytext); return Tok_UserType;}
 
-\n[ ]*"//"  {BEGIN(COMMENT);}
-\n[ ]*"/*"  {BEGIN(ML_COMMENT);}
-\n[ ]*$     {}
+\n[ ]*"//"  {yycolumn = 0; BEGIN(COMMENT);}
+\n[ ]*"/*"  {yycolumn = yyleng; BEGIN(ML_COMMENT);}
+\n[ ]*$     {yycolumn = 0; }
 
 \n[ ]*([A-Za-z_]|{operator})    {
                                     yyless(yyleng-1);
                                     yyleng -= 1;
+                                    yycolumn = yyleng;
                                     if(yyleng == lexerCtxt->scopes.top()){
                                         return Tok_Newline;
                                     }
@@ -315,6 +322,7 @@ global    {return Tok_Global;}
 
 
 <UNINDENT>.|\n  {
+                    yycolumn = yycolumn == 0 ? 0 : yycolumn-1;
                     if(lexerCtxt->ws_size == lexerCtxt->scopes.top()){
                         yyless(0);
                         BEGIN(INITIAL);
@@ -326,9 +334,9 @@ global    {return Tok_Global;}
                     }
                 }
 
-[ ]* {}
+[ ]* {yycolumn += yyleng;}
 
-\n   {}
+\n   {yycolumn = 0;}
 
 <<EOF>>  {
             if(0 < lexerCtxt->scopes.top()){
@@ -354,6 +362,8 @@ global    {return Tok_Global;}
 
 void ante::LexerCtxt::init_scanner(){
     lexerCtxt = this;
+    yylineno = 1;
+    yycolumn = 1;
     //yylex_init(is);
     //yyset_extra(this, scanner);
 }
@@ -371,7 +381,7 @@ void flex_error(const char *msg, yy::parser::location_type* loc){
 }
 
 //copy a numerical string and remove _ instances
-char* numdup(const char *str, size_t len){
+char* ante::numdup(const char *str, size_t len){
     char *buf = (char*)malloc(len+1);
     size_t buf_idx = 0;
     for(size_t i = 0; i < len; i++){
@@ -381,6 +391,16 @@ char* numdup(const char *str, size_t len){
     }
     buf[buf_idx] = '\0';
     return buf;
+}
+
+void ante::updateLoc(yy::parser::location_type* loc){
+    loc->begin.filename = lexerCtxt->filename;
+    loc->begin.line = yylineno;
+    loc->begin.column = yycolumn;
+    loc->end.filename = lexerCtxt->filename;
+    loc->end.line = yylineno;
+    yycolumn += yyleng;
+    loc->end.column = yycolumn;
 }
 
 namespace ante {

@@ -18,7 +18,6 @@
 #include "error.h"
 using namespace ante;
 
-extern char *lextext;
 
 //extern int yylex();
 extern int yylex(YYSTYPE*, LOC_TY*, ante::LexerCtxt*);
@@ -27,6 +26,8 @@ namespace ante {
     extern string typeNodeToStr(const TypeNode*);
 
     struct TypeNode;
+
+    extern char *lextext;
 }
 
 Node* tnToFnName(Node *n);
