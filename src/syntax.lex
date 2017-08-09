@@ -187,11 +187,11 @@ void  {return Tok_Void;}
 "/*"       {BEGIN(ML_COMMENT);}
 "//"       {BEGIN(COMMENT);}
 
-<COMMENT>\n {yycolumn = 0; yyless(0); BEGIN(INITIAL);}
+<COMMENT>\n {yycolumn = 1; yyless(0); BEGIN(INITIAL);}
 <COMMENT>.  {}
 
 <ML_COMMENT>"*/"  {BEGIN(INITIAL);}
-<ML_COMMENT>\n    {yycolumn = 0;}
+<ML_COMMENT>\n    {yycolumn = 1;}
 <ML_COMMENT>.     {}
 
 {operator}  {return yytext[0];}
@@ -265,7 +265,7 @@ global    {return Tok_Global;}
 <STRLIT>\\[0-9]+  {lextext_str += '\a';}
 <STRLIT>\\\\      {lextext_str += '\\';}
 <STRLIT>\\.       {YY_FATAL_ERROR("Unknown escape sequence");}
-<STRLIT>\n        {yycolumn = 0; printf("Line %d:\n",yylineno); YY_FATAL_ERROR("Unterminated string");}
+<STRLIT>\n        {yycolumn = 1; printf("Line %d:\n",yylineno); YY_FATAL_ERROR("Unterminated string");}
 <STRLIT>.         {lextext_str += yytext[0];}
 
 '   {BEGIN(CHARLIT);}
@@ -284,7 +284,7 @@ global    {return Tok_Global;}
 <CHARLIT>\\\\'      {lextext = strdup("\\"); BEGIN(INITIAL); return Tok_CharLit;}
 <CHARLIT>.'         {yytext[1] = '\0'; lextext = strdup(yytext); BEGIN(INITIAL); return Tok_CharLit;}
 <CHARLIT>\\.'       {YY_FATAL_ERROR("Unknown escape sequence");}
-<CHARLIT>\n         {yycolumn = 0; printf("Line %d:\n",yylineno); YY_FATAL_ERROR("Unterminated char literal");}
+<CHARLIT>\n         {yycolumn = 1; printf("Line %d:\n",yylineno); YY_FATAL_ERROR("Unterminated char literal");}
 
 <CHARLIT>{ident}    {lextext = strdup(yytext); BEGIN(INITIAL); return Tok_TypeVar;}
 <CHARLIT>{ident}'   {printf("Line %d:\n",yylineno); YY_FATAL_ERROR("Invalid char literal (too long)");}
@@ -292,29 +292,28 @@ global    {return Tok_Global;}
 {ident}    {lextext = strdup(yytext); return Tok_Ident;}
 {usertype} {lextext = strdup(yytext); return Tok_UserType;}
 
-\n[ ]*"//"  {yycolumn = 0; BEGIN(COMMENT);}
+\n[ ]*"//"  {yycolumn = 1; BEGIN(COMMENT);}
 \n[ ]*"/*"  {yycolumn = yyleng; BEGIN(ML_COMMENT);}
-\n[ ]*$     {yycolumn = 0; }
+\n[ ]*$     {yycolumn = 1; }
 
 \n[ ]*([A-Za-z_]|{operator})    {
                                     yyless(yyleng-1);
-                                    yyleng -= 1;
                                     yycolumn = yyleng;
-                                    if(yyleng == lexerCtxt->scopes.top()){
+                                    if(yyleng-1 == lexerCtxt->scopes.top()){
                                         return Tok_Newline;
                                     }
 
-                                    long dif = abs((long)yyleng - (long)lexerCtxt->scopes.top());
+                                    long dif = abs((long)yyleng-1 - (long)lexerCtxt->scopes.top());
                                     if(dif < 2){
                                         YY_FATAL_ERROR("Changes in significant whitespace cannot be less than 2 spaces in size");
                                     }
                                     
-                                    if(yyleng > lexerCtxt->scopes.top()){
-                                        lexerCtxt->scopes.push(yyleng);
+                                    if(yyleng-1 > lexerCtxt->scopes.top()){
+                                        lexerCtxt->scopes.push(yyleng-1);
                                         return Tok_Indent;
                                     }else{
                                         lexerCtxt->scopes.pop();
-                                        lexerCtxt->ws_size = yyleng;
+                                        lexerCtxt->ws_size = yyleng-1;
                                         BEGIN(UNINDENT);
                                         return Tok_Unindent;
                                     }
@@ -334,9 +333,9 @@ global    {return Tok_Global;}
                     }
                 }
 
-[ ]* {yycolumn += yyleng;}
+[ ]* {}
 
-\n   {yycolumn = 0;}
+\n   {yycolumn = 1;}
 
 <<EOF>>  {
             if(0 < lexerCtxt->scopes.top()){
@@ -400,7 +399,7 @@ void ante::updateLoc(yy::parser::location_type* loc){
     loc->end.filename = lexerCtxt->filename;
     loc->end.line = yylineno;
     yycolumn += yyleng;
-    loc->end.column = yycolumn;
+    loc->end.column = yycolumn-1;
 }
 
 namespace ante {
