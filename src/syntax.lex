@@ -156,7 +156,7 @@ typevar '{ident}
 
 usertype [A-Z][A-Za-z0-9]*
 
-intlit [0-9_]+
+intlit [0-9][0-9_]*
 
 operator [-`~!@#$%^&*()+=\{\}\[\]\\|:;/?.,<>]
 
