@@ -296,28 +296,28 @@ global    {return Tok_Global;}
 \n[ ]*"/*"  {yycolumn = yyleng; BEGIN(ML_COMMENT);}
 \n[ ]*$     {yycolumn = 1; }
 
-\n[ ]*([A-Za-z_]|{operator})    {
-                                    yyless(yyleng-1);
-                                    yycolumn = yyleng;
-                                    if(yyleng-1 == lexerCtxt->scopes.top()){
-                                        return Tok_Newline;
-                                    }
+\n[ ]*[^ ]    {
+                  yyless(yyleng-1);
+                  yycolumn = yyleng;
+                  if(yyleng-1 == lexerCtxt->scopes.top()){
+                      return Tok_Newline;
+                  }
 
-                                    long dif = abs((long)yyleng-1 - (long)lexerCtxt->scopes.top());
-                                    if(dif < 2){
-                                        YY_FATAL_ERROR("Changes in significant whitespace cannot be less than 2 spaces in size");
-                                    }
-                                    
-                                    if(yyleng-1 > lexerCtxt->scopes.top()){
-                                        lexerCtxt->scopes.push(yyleng-1);
-                                        return Tok_Indent;
-                                    }else{
-                                        lexerCtxt->scopes.pop();
-                                        lexerCtxt->ws_size = yyleng-1;
-                                        BEGIN(UNINDENT);
-                                        return Tok_Unindent;
-                                    }
-                                }
+                  long dif = abs((long)yyleng-1 - (long)lexerCtxt->scopes.top());
+                  if(dif < 2){
+                      YY_FATAL_ERROR("Changes in significant whitespace cannot be less than 2 spaces in size");
+                  }
+                  
+                  if(yyleng-1 > lexerCtxt->scopes.top()){
+                      lexerCtxt->scopes.push(yyleng-1);
+                      return Tok_Indent;
+                  }else{
+                      lexerCtxt->scopes.pop();
+                      lexerCtxt->ws_size = yyleng-1;
+                      BEGIN(UNINDENT);
+                      return Tok_Unindent;
+                  }
+              }
 
 
 <UNINDENT>.|\n  {
@@ -341,7 +341,7 @@ global    {return Tok_Global;}
             if(0 < lexerCtxt->scopes.top()){
                 lexerCtxt->scopes.pop();
                 lexerCtxt->ws_size = 0;
-                BEGIN(UNINDENT);
+                BEGIN(INITIAL);
                 return Tok_Unindent;
             }else{
                 return 0;
@@ -405,14 +405,11 @@ void ante::updateLoc(yy::parser::location_type* loc){
 namespace ante {
     namespace lexer {
         void printTok(int t){
-            if(t < 258)
-                cout << (char)t;
-            else
-                std::cout << getTokStr(t);
+            std::cout << getTokStr(t);
         }
 
         std::string getTokStr(int t){
-            return IS_LITERAL(t) ? string((char)t,1) : tokDict[t];
+            return IS_LITERAL(t) ? string("")+(char)t : tokDict[t];
         }
     }
 }
