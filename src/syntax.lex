@@ -50,6 +50,9 @@ namespace ante {
 
     size_t yycolumn = 1;
 
+    int bracket_matches = 0;
+    int paren_matches = 0;
+
     bool colored_output = true;
 
     void updateLoc(yy::parser::location_type* loc);
@@ -158,7 +161,7 @@ usertype [A-Z][A-Za-z0-9]*
 
 intlit [0-9][0-9_]*
 
-operator [-`~!@#$%^&*()+=\{\}\[\]\\|:;/?.,<>]
+operator [-`~!@#$%^&*+=\{\}\\|:;/?.,<>]
 
 %%
 
@@ -195,6 +198,12 @@ void  {return Tok_Void;}
 <ML_COMMENT>.     {}
 
 {operator}  {return yytext[0];}
+"("         {paren_matches++; return '(';}
+"["         {bracket_matches++; return '[';}
+")"         {if(paren_matches) paren_matches--; return ')';}
+"]"         {if(bracket_matches) bracket_matches--; return ']';}
+
+
 "=="        {return Tok_Eq;}
 "!="        {return Tok_NotEq;}
 "+="        {return Tok_AddEq;}
@@ -299,23 +308,25 @@ global    {return Tok_Global;}
 \n[ ]*[^ ]    {
                   yyless(yyleng-1);
                   yycolumn = yyleng;
-                  if(yyleng-1 == lexerCtxt->scopes.top()){
-                      return Tok_Newline;
-                  }
+                  if(!paren_matches && !bracket_matches){
+                      if(yyleng-1 == lexerCtxt->scopes.top()){
+                          return Tok_Newline;
+                      }
 
-                  long dif = abs((long)yyleng-1 - (long)lexerCtxt->scopes.top());
-                  if(dif < 2){
-                      YY_FATAL_ERROR("Changes in significant whitespace cannot be less than 2 spaces in size");
-                  }
-                  
-                  if(yyleng-1 > lexerCtxt->scopes.top()){
-                      lexerCtxt->scopes.push(yyleng-1);
-                      return Tok_Indent;
-                  }else{
-                      lexerCtxt->scopes.pop();
-                      lexerCtxt->ws_size = yyleng-1;
-                      BEGIN(UNINDENT);
-                      return Tok_Unindent;
+                      long dif = abs((long)yyleng-1 - (long)lexerCtxt->scopes.top());
+                      if(dif < 2){
+                          YY_FATAL_ERROR("Changes in significant whitespace cannot be less than 2 spaces in size");
+                      }
+                      
+                      if(yyleng-1 > lexerCtxt->scopes.top()){
+                          lexerCtxt->scopes.push(yyleng-1);
+                          return Tok_Indent;
+                      }else{
+                          lexerCtxt->scopes.pop();
+                          lexerCtxt->ws_size = yyleng-1;
+                          BEGIN(UNINDENT);
+                          return Tok_Unindent;
+                      }
                   }
               }
 
@@ -363,6 +374,8 @@ void ante::LexerCtxt::init_scanner(){
     lexerCtxt = this;
     yylineno = 1;
     yycolumn = 1;
+    paren_matches = 0;
+    bracket_matches = 0;
     //yylex_init(is);
     //yyset_extra(this, scanner);
 }
