@@ -155,8 +155,6 @@ map<int, const char*> tokDict = {
 
 ident [a-z_][A-Za-z_0-9]*
 
-typevar '{ident}
-
 usertype [A-Z][A-Za-z0-9]*
 
 intlit [0-9][0-9_]*
@@ -295,7 +293,7 @@ global    {return Tok_Global;}
 <CHARLIT>\\.'       {YY_FATAL_ERROR("Unknown escape sequence");}
 <CHARLIT>\n         {yycolumn = 1; printf("Line %d:\n",yylineno); YY_FATAL_ERROR("Unterminated char literal");}
 
-<CHARLIT>{ident}    {lextext = strdup(yytext); BEGIN(INITIAL); return Tok_TypeVar;}
+<CHARLIT>{ident}    {lextext_str=string("'")+string(yytext); lextext = strdup(lextext_str.c_str()); BEGIN(INITIAL); return Tok_TypeVar;}
 <CHARLIT>{ident}'   {printf("Line %d:\n",yylineno); YY_FATAL_ERROR("Invalid char literal (too long)");}
 
 {ident}    {lextext = strdup(yytext); return Tok_Ident;}
